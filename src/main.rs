@@ -1,5 +1,6 @@
 use env_logger::Env;
-use log::debug;
+use log::{debug, info};
+use std::net::TcpListener;
 
 #[macro_use]
 extern crate serde_derive;
@@ -19,4 +20,7 @@ fn main() {
 
     let config = config::get_config().unwrap();
     debug!("env configs: {:?}", config);
+
+    let listener = TcpListener::bind(&config.proxy_listen_port).unwrap();
+    info!("Listening on port: {}", config.proxy_listen_port);
 }
