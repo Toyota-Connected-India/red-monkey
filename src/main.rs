@@ -21,6 +21,7 @@ fn main() {
     let config = config::get_config().unwrap();
     debug!("env configs: {:?}", config);
 
+    #[allow(unused_variables)]
     let listener = TcpListener::bind(&config.proxy_listen_port).unwrap();
     info!("Listening on port: {}", config.proxy_listen_port);
 }
