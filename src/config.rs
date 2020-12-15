@@ -1,5 +1,3 @@
-use envy;
-
 #[derive(Deserialize, Debug)]
 pub struct Config {
     pub proxy_listen_port: String,
