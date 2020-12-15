@@ -1,6 +1,7 @@
 use env_logger::Env;
 use log::{debug, info, error};
 use std::net::TcpListener;
+use std::process;
 
 #[macro_use]
 extern crate serde_derive;
@@ -19,8 +20,10 @@ fn main() {
 
     let config = config::get_config().unwrap_or_else(
         |e| {
-            error!("Error parsing environment variables : {}", e)
+            error!("Failed to parse environment variables : {}",e);
+            process::exit(0);
         }
+
     );
     debug!("env configs: {:?}", config);
 
