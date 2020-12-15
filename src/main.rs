@@ -18,7 +18,7 @@ fn init_logger() {
 fn main() {
     init_logger();
 
-    let config = config::get_config().unwrap();
+    let config = r#try!(config::get_config().unwrap());
     debug!("env configs: {:?}", config);
 
     #[allow(unused_variables)]
