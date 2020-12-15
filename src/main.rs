@@ -1,6 +1,7 @@
 use env_logger::Env;
 use log::{debug, info};
 use std::net::TcpListener;
+use std::process;
 
 #[macro_use]
 extern crate serde_derive;
@@ -11,14 +12,18 @@ fn init_logger() {
     let env = Env::default()
         .filter_or("LOG_LEVEL", "debug")
         .write_style_or("LOG_STYLE", "always");
-
     env_logger::init_from_env(env);
 }
 
 fn main() {
     init_logger();
 
-    let config = r#try!(config::get_config().unwrap());
+    let config = config::get_config().unwrap_or_else(
+        |e| {
+            eprintln!("Problem deserializing environment variables: {}", e);
+            process::exit(1);
+        }
+    );
     debug!("env configs: {:?}", config);
 
     #[allow(unused_variables)]
