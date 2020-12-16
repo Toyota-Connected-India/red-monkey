@@ -1,5 +1,3 @@
-use envy;
-
 #[derive(Deserialize, Debug)]
 pub struct Config {
     pub proxy_listen_port: String,
@@ -10,7 +8,7 @@ pub struct Config {
 
 pub fn get_config() -> Result<Config, envy::Error> {
     match envy::from_env::<Config>() {
-        Ok(config) => return Ok(config),
-        Err(e) => return Err(e),
+        Ok(config) => Ok(config),
+        Err(e) => Err(e),
     }
 }
