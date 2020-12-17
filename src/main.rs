@@ -7,6 +7,7 @@ use std::process;
 extern crate serde_derive;
 
 mod config;
+mod proxy;
 
 fn init_logger() {
     let env = Env::default()
@@ -15,6 +16,7 @@ fn init_logger() {
     env_logger::init_from_env(env);
 }
 
+#[allow(unused_variables)]
 fn main() {
     init_logger();
 
@@ -24,7 +26,18 @@ fn main() {
     });
     debug!("env configs: {:?}", config);
 
-    #[allow(unused_variables)]
     let listener = TcpListener::bind(&config.proxy_listen_port).unwrap();
     info!("Listening on port: {}", config.proxy_listen_port);
+
+    let proxy = match proxy::connection::Conn::new(&config.redis_address) {
+        Ok(proxy) => proxy,
+        Err(e) => panic!("error creating new proxy: {}", e),
+    };
+
+    for stream in listener.incoming() {
+        debug!("Connection established!");
+
+        let stream = stream.unwrap();
+        proxy.handle_connection(stream);
+    }
 }

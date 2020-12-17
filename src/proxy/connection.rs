@@ -1,15 +1,10 @@
-use r2d2_redis;
 use r2d2_redis::{r2d2, redis, RedisConnectionManager};
+use redis::ConnectionLike;
 use std::fmt;
 use std::io::prelude::*;
+use std::io::Write;
 use std::net::TcpStream;
 use std::ops::DerefMut;
-use std::thread;
-
-pub struct Connection {
-    pub redis_server_addr: String,
-    pool: r2d2::Pool,
-}
 
 pub struct ConnectionError;
 
@@ -19,44 +14,35 @@ impl fmt::Display for ConnectionError {
     }
 }
 
-pub fn new(redis_server_addr: &String) -> Result<Connection, ConnectionError> {
-    let manager = RedisConnectionManager::new(redis_server_addr.to_string()).unwrap();
-    let _pool = r2d2::Pool::builder().build(manager).unwrap();
-
-    Ok(Connection {
-        redis_server_addr: redis_server_addr.to_string(),
-    })
+pub struct Conn {
+    pub redis_server_addr: String,
+    pool: r2d2::Pool<r2d2_redis::RedisConnectionManager>,
 }
 
-impl Connection {
+impl Conn {
+    pub fn new(redis_server_addr: &String) -> Result<Conn, ConnectionError> {
+        let manager = RedisConnectionManager::new(redis_server_addr.to_string()).unwrap();
+        let pool = r2d2::Pool::builder().max_size(10).build(manager).unwrap();
+
+        Ok(Conn {
+            redis_server_addr: redis_server_addr.to_string(),
+            pool,
+        })
+    }
+
     pub fn handle_connection(&self, mut stream: TcpStream) {
-        let mut buffer = [0; 1024];
-        stream.read(&mut buffer).unwrap();
-        let redis_command = String::from_utf8_lossy(&buffer[..]).to_string();
+        let mut redis_command = [0; 1024];
+        stream.read(&mut redis_command).unwrap();
 
-        let manager = RedisConnectionManager::new(self.redis_server_addr.to_string()).unwrap();
-        let pool = r2d2::Pool::builder().build(manager).unwrap();
+        let pool = self.pool.clone();
+        let mut conn = pool.clone().get().unwrap();
+        let redis_conn = conn.deref_mut();
 
-        let mut handles = vec![];
-        let max: i32 = 10;
+        let redis_value = redis_conn.req_packed_command(&redis_command).unwrap();
 
-        for _i in 0..max {
-            let pool = pool.clone();
-            let cmd = redis_command.to_string();
+        let result: String = redis::from_redis_value(&redis_value).unwrap();
+        println!("result {:?}, {:?}", result, result.chars().nth(0).unwrap());
 
-            handles.push(thread::spawn(move || {
-                let mut conn = pool.get().unwrap();
-
-                // TODO: Fix the RESP error
-                let _reply = redis::cmd(&cmd).query::<String>(conn.deref_mut()).unwrap();
-
-                // Alternatively, without deref():
-                //let reply = redis::cmd(&cmd).query::<String>(&mut *conn).unwrap();
-            }));
-        }
-
-        for h in handles {
-            h.join().unwrap();
-        }
+        stream.write(result.as_str().as_bytes()).unwrap();
     }
 }
