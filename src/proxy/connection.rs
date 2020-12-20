@@ -1,3 +1,4 @@
+use log::{debug, error};
 use r2d2_redis::{r2d2, redis, RedisConnectionManager};
 use redis::ConnectionLike;
 use std::fmt;
@@ -20,7 +21,7 @@ pub struct Conn {
 }
 
 impl Conn {
-    pub fn new(redis_server_addr: &String) -> Result<Conn, ConnectionError> {
+    pub fn new(redis_server_addr: &str) -> Result<Conn, ConnectionError> {
         let manager = RedisConnectionManager::new(redis_server_addr.to_string()).unwrap();
         let pool = r2d2::Pool::builder().max_size(10).build(manager).unwrap();
 
@@ -32,17 +33,23 @@ impl Conn {
 
     pub fn handle_connection(&self, mut stream: TcpStream) {
         let mut redis_command = [0; 1024];
-        stream.read(&mut redis_command).unwrap();
+
+        let n = stream.read(&mut redis_command);
+        match n {
+            Ok(n) => debug!("read {:?} bytes from the request", n),
+            Err(e) => error!("error reading request: {:?}", e),
+        }
 
         let pool = self.pool.clone();
-        let mut conn = pool.clone().get().unwrap();
+        let mut conn = pool.get().unwrap();
         let redis_conn = conn.deref_mut();
 
         let redis_value = redis_conn.req_packed_command(&redis_command).unwrap();
 
         let result: String = redis::from_redis_value(&redis_value).unwrap();
-        println!("result {:?}, {:?}", result, result.chars().nth(0).unwrap());
+        debug!("redis result from server: {:?}", result);
 
-        stream.write(result.as_str().as_bytes()).unwrap();
+        stream.write_all(result.as_str().as_bytes()).unwrap();
+        debug!("connection closed");
     }
 }
