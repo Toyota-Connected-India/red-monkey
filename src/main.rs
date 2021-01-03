@@ -16,7 +16,6 @@ fn init_logger() {
     env_logger::init_from_env(env);
 }
 
-#[allow(unused_variables)]
 fn main() {
     init_logger();
 
