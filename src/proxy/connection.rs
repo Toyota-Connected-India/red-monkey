@@ -40,8 +40,8 @@ impl Connection {
             Err(e) => error!("error reading request: {:?}", e),
         }
 
-        let pool = self.pool.clone();
-        let mut conn = pool.get().unwrap();
+        //let pool = self.pool.clone();
+        let mut conn = self.pool.get().unwrap();
         let redis_conn = conn.deref_mut();
 
         let mut redis_value = redis_conn
