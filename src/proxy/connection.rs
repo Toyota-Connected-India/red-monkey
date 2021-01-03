@@ -15,17 +15,17 @@ impl fmt::Display for ConnectionError {
     }
 }
 
-pub struct Conn {
+pub struct Connection {
     pub redis_server_addr: String,
     pool: r2d2::Pool<r2d2_redis::RedisConnectionManager>,
 }
 
-impl Conn {
-    pub fn new(redis_server_addr: &str) -> Result<Conn, ConnectionError> {
+impl Connection {
+    pub fn new(redis_server_addr: &str) -> Result<Connection, ConnectionError> {
         let manager = RedisConnectionManager::new(redis_server_addr.to_string()).unwrap();
-        let pool = r2d2::Pool::builder().max_size(10).build(manager).unwrap();
+        let pool = r2d2::Pool::builder().max_size(30).build(manager).unwrap();
 
-        Ok(Conn {
+        Ok(Connection {
             redis_server_addr: redis_server_addr.to_string(),
             pool,
         })
@@ -40,12 +40,7 @@ impl Conn {
             Err(e) => error!("error reading request: {:?}", e),
         }
 
-        if let Ok(redis_command) = str::from_utf8(&mut redis_command) {
-            debug!("redis request: {:?}", redis_command);
-        }
-
         let pool = self.pool.clone();
-
         let mut conn = pool.get().unwrap();
         let redis_conn = conn.deref_mut();
 
@@ -53,23 +48,16 @@ impl Conn {
             .req_packed_command_raw_resp(&redis_command)
             .unwrap();
 
-        // TODO: Buffer size 1024 is not safe
-        // Should read the response from server until EOF
         let mut server_resp_buff = [0; 1024];
 
         let n = redis_value.read(&mut server_resp_buff);
-        match n {
-            Ok(n) => debug!("read {:?} bytes", n),
-            Err(_) => {}
-        };
-
-        if let Ok(s) = str::from_utf8(&mut server_resp_buff) {
-            debug!("server response: {:?}", s);
+        if let Ok(n) = n {
+            debug!("read {:?} bytes from the server response", n);
         }
 
-        stream.write(&mut server_resp_buff).unwrap();
+        stream.write_all(&server_resp_buff).unwrap();
         stream.flush().unwrap();
 
-        debug!("connection closed");
+        debug!("wrote server response in the client stream");
     }
 }
