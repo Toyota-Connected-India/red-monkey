@@ -10,6 +10,7 @@ extern crate serde_derive;
 
 mod config;
 mod proxy;
+mod store;
 
 fn init_logger() {
     let env = Env::default()
@@ -47,4 +48,6 @@ fn main() {
             debug!("connection closed");
         });
     }
+
+    let _fault_store = crate::store::mem_store::new();
 }

@@ -17,6 +17,7 @@ env_logger = "0.8.1"
 redis = { git = "https://github.com/AjithPanneerselvam/redis-rs.git", branch="add-recv-raw-response"}
 r2d2_redis = { git = "https://github.com/AjithPanneerselvam/r2d2-redis.git", branch="use-my-redis-branch"}
 futures = "0.3.8"
+chashmap = "2.2.0"
 
 [[example]]
 name = "cmd"
