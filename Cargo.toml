@@ -8,16 +8,14 @@ edition = "2018"
 
 [dependencies]
 envy = "0.4"
+redis = "0.19.0"
 serde = "1.0.117"
 serde_derive = "1.0.117"
 log  = "0.4.11"
 env_logger = "0.8.1"
-#redis = "0.18.0"
-#r2d2_redis="0.13.0"
-redis = { git = "https://github.com/AjithPanneerselvam/redis-rs.git", branch="add-recv-raw-response"}
-r2d2_redis = { git = "https://github.com/AjithPanneerselvam/r2d2-redis.git", branch="use-my-redis-branch"}
 futures = "0.3.8"
 chashmap = "2.2.0"
+tokio = { version = "1", features = ["full"] }
 
 [[example]]
 name = "cmd"

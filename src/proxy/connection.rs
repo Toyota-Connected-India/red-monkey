@@ -1,63 +1,41 @@
-use ::redis::ConnectionLike;
-use log::{debug, error};
-use r2d2_redis::{r2d2, RedisConnectionManager};
+use std::error::Error;
 use std::fmt;
-use std::io::{Read, Write};
-use std::net::TcpStream;
-use std::ops::DerefMut;
-use std::str;
+
+use log::debug;
+use tokio::io;
+use tokio::io::AsyncWriteExt;
+use tokio::net::TcpStream;
 
 pub struct ConnectionError;
 
 impl fmt::Display for ConnectionError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Connection Error:")
+        write!(f, "[Connection Error]")
     }
 }
 
-pub struct Connection {
-    pub redis_server_addr: String,
-    pool: r2d2::Pool<r2d2_redis::RedisConnectionManager>,
-}
+pub async fn handle_connection(
+    mut inbound_stream: TcpStream,
+    redis_server_addr: String,
+) -> Result<(), Box<dyn Error>> {
+    let mut outbound_stream = TcpStream::connect(redis_server_addr.clone()).await?;
 
-impl Connection {
-    pub fn new(redis_server_addr: &str) -> Result<Connection, ConnectionError> {
-        let manager = RedisConnectionManager::new(redis_server_addr.to_string()).unwrap();
-        let pool = r2d2::Pool::builder().max_size(30).build(manager).unwrap();
+    let (mut read_inbound, mut write_inbound) = inbound_stream.split();
+    let (mut read_outbound, mut write_outbound) = outbound_stream.split();
 
-        Ok(Connection {
-            redis_server_addr: redis_server_addr.to_string(),
-            pool,
-        })
-    }
+    let client_to_server = async {
+        io::copy(&mut read_inbound, &mut write_outbound).await?;
+        debug!("request proxied to redis server");
+        write_outbound.shutdown().await
+    };
 
-    pub fn handle_connection(&self, mut stream: TcpStream) {
-        let mut redis_command = [0; 1024];
+    let server_to_client = async {
+        io::copy(&mut read_outbound, &mut write_inbound).await?;
+        debug!("response sent back to client");
+        write_inbound.shutdown().await
+    };
 
-        let n = stream.read(&mut redis_command);
-        match n {
-            Ok(n) => debug!("read {:?} bytes from the request", n),
-            Err(e) => error!("error reading request: {:?}", e),
-        }
+    tokio::try_join!(client_to_server, server_to_client)?;
 
-        //let pool = self.pool.clone();
-        let mut conn = self.pool.get().unwrap();
-        let redis_conn = conn.deref_mut();
-
-        let mut redis_value = redis_conn
-            .req_packed_command_raw_resp(&redis_command)
-            .unwrap();
-
-        let mut server_resp_buff = [0; 1024];
-
-        let n = redis_value.read(&mut server_resp_buff);
-        if let Ok(n) = n {
-            debug!("read {:?} bytes from the server response", n);
-        }
-
-        stream.write_all(&server_resp_buff).unwrap();
-        stream.flush().unwrap();
-
-        debug!("wrote server response in the client stream");
-    }
+    Ok(())
 }

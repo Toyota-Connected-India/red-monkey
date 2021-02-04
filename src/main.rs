@@ -1,13 +1,12 @@
 use env_logger::Env;
+use futures::FutureExt;
 use log::{debug, error, info};
-use std::net::TcpListener;
+use std::error::Error;
 use std::process;
-use std::sync::Arc;
-use std::thread;
+use tokio::net::TcpListener;
 
 #[macro_use]
 extern crate serde_derive;
-
 mod config;
 mod proxy;
 mod store;
@@ -19,7 +18,8 @@ fn init_logger() {
     env_logger::init_from_env(env);
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     init_logger();
 
     let config = config::get_config().unwrap_or_else(|e| {
@@ -28,26 +28,23 @@ fn main() {
     });
     debug!("env configs: {:?}", config);
 
-    let listener = TcpListener::bind(&config.proxy_listen_port).unwrap();
+    let listener = TcpListener::bind(&config.proxy_listen_port).await?;
     info!("Listening on port: {}", config.proxy_listen_port);
 
-    let proxy = match proxy::connection::Connection::new(&config.redis_address) {
-        Ok(proxy) => proxy,
-        Err(e) => panic!("error creating new proxy: {}", e),
-    };
-
-    let proxy = Arc::new(proxy);
-
-    for stream in listener.incoming() {
+    while let Ok((inbound, _)) = listener.accept().await {
         debug!("connection established!");
-        let proxy = proxy.clone();
-        let stream = stream.unwrap();
 
-        thread::spawn(move || {
-            proxy.handle_connection(stream);
-            debug!("connection closed");
-        });
+        let transfer = proxy::connection::handle_connection(inbound, config.redis_address.clone())
+            .map(|r| {
+                if let Err(e) = r {
+                    error!("Error handling connection: {}", e);
+                }
+            });
+
+        tokio::spawn(transfer);
     }
 
     let _fault_store = crate::store::mem_store::new();
+
+    Ok(())
 }
