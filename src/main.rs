@@ -28,8 +28,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
     debug!("env configs: {:?}", config);
 
-    let listener = TcpListener::bind(&config.proxy_listen_port).await?;
-    info!("Listening on port: {}", config.proxy_listen_port);
+    let listener = TcpListener::bind(&config.proxy_port).await?;
+    info!("Listening on port: {}", config.proxy_port);
 
     while let Ok((inbound, _)) = listener.accept().await {
         debug!("connection established!");

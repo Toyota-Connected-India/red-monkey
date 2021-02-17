@@ -12,3 +12,5 @@ Cargo.lock
 
 #Added by cargo
 /target
+
+.env

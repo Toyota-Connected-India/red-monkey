@@ -1,0 +1,16 @@
+version: "3"
+services:
+  red-monkey:
+    build: .
+    depends_on:
+      - redis
+    environment:
+      PROXY_PORT: 0.0.0.0:6350
+      REDIS_ADDRESS: redis:6379
+      IS_TLS_ON: "false"
+      FAULT_API_PORT: 8083
+    ports:
+      - "6350:6350"
+      - "8083:8083"
+  redis:
+    image: redis:rc-buster

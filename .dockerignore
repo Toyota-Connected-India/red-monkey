@@ -1,0 +1,13 @@
+target
+Dockerfile
+.dockerignore
+.git
+.gitignore
+**/*.rs.bk
+docker-compose.yml
+docker.env
+local.env
+README.md
+assets
+.github
+.env
