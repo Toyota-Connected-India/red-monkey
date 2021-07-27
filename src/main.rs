@@ -1,13 +1,19 @@
+#![feature(proc_macro_hygiene, decl_macro)]
+
 use env_logger::Env;
-use futures::FutureExt;
+use futures::future::FutureExt;
 use log::{debug, error, info};
+use std::boxed::Box;
 use std::error::Error;
 use std::process;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 
 #[macro_use]
 extern crate serde_derive;
+
 mod config;
+mod fault_config_server;
 mod proxy;
 mod store;
 
@@ -31,20 +37,29 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(&config.proxy_port).await?;
     info!("Listening on port: {}", config.proxy_port);
 
-    while let Ok((inbound, _)) = listener.accept().await {
-        debug!("connection established!");
+    let fault_store = store::mem_store::MemStore::new();
 
-        let transfer = proxy::connection::handle_connection(inbound, config.redis_address.clone())
+    let proxy = Arc::new(proxy::connection::Connection::new(
+        Box::leak(config.redis_address.into_boxed_str()),
+        proxy::faulter::Faulter::new(fault_store.clone_box()),
+    ));
+
+    // run the fault config server
+    fault_config_server::routes::run(fault_store);
+
+    while let Ok((inbound, _)) = listener.accept().await {
+        let proxy = proxy.clone();
+        debug!("request received");
+
+        let _transfer = proxy
+            .handle_connection(inbound)
             .map(|r| {
                 if let Err(e) = r {
                     error!("Error handling connection: {}", e);
                 }
-            });
-
-        tokio::spawn(transfer);
+            })
+            .await;
     }
-
-    let _fault_store = crate::store::mem_store::new();
 
     Ok(())
 }

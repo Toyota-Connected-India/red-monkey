@@ -1,50 +1,228 @@
-use crate::store::*;
+use crate::store::fault_store::{Fault, FaultStore, StoreError};
+use log::debug;
 
-struct MemStore {
+/// MemStore is an in-memory store implementation of FaultStore
+#[derive(Debug, Clone)]
+pub struct MemStore {
     store: chashmap::CHashMap<String, Fault>,
 }
 
-pub fn new() -> Box<dyn FaultStore> {
-    Box::new(MemStore {
-        store: chashmap::CHashMap::new(),
-    })
+impl MemStore {
+    pub fn new() -> Box<dyn FaultStore + Send + Sync> {
+        Box::new(MemStore {
+            store: chashmap::CHashMap::new(),
+        })
+    }
 }
 
 impl FaultStore for MemStore {
-    fn store(&mut self, key: &str, fault: Fault) {
-        self.store.insert(key.to_string(), fault);
+    fn store(&self, fault_name: &str, fault: &Fault) -> Result<bool, StoreError> {
+        match self.store.insert(fault_name.to_string(), fault.clone()) {
+            None => {
+                debug!("Fault {} stored in memory", fault.name);
+                Ok(true)
+            }
+            Some(val) => {
+                debug!("Fault {} is replaced by the latest config", val.name);
+                Ok(true)
+            }
+        }
     }
 
-    fn get_by_command(&self, cmd: &str) -> Option<Fault> {
-        match self.store.get(cmd) {
-            Some(val) => Some((*val).clone()),
-            None => None,
+    fn get_by_fault_name(&self, fault_name: &str) -> Result<Fault, StoreError> {
+        match self.store.get(fault_name) {
+            Some(val) => Ok(val.clone()),
+            None => Err(StoreError::new(
+                format!("Fault {} not found", fault_name).as_str(),
+            )),
+        }
+    }
+
+    fn get_all_faults(&self) -> Result<Vec<Fault>, StoreError> {
+        let mut faults = Vec::new();
+        for (_, value) in self.store.clone() {
+            faults.push(value);
+        }
+
+        Ok(faults)
+    }
+
+    fn delete_fault(&self, fault_name: &str) -> Result<bool, StoreError> {
+        match self.store.remove(fault_name) {
+            None => Ok(false),
+            Some(fault) => {
+                debug!("Delete fault {}", fault.name);
+                Ok(true)
+            }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::store::fault_store::*;
     use crate::store::mem_store;
-    use crate::store::*;
 
     #[test]
-    fn test_mem_store() {
-        let mut mem_store = mem_store::new();
-        let key = "delay_10_seconds";
-        let fault = Fault {
-            name: "delay 10 seconds".to_string(),
-            description: "inject a delay of 10 seconds".to_string(),
-            f_type: "inject_delay".to_string(),
-        };
+    fn test_store() {
+        let mem_store = mem_store::MemStore::new();
 
-        mem_store.store(key, fault.clone());
-
-        match mem_store.get_by_command(key) {
-            Some(actual_fault) => {
-                assert_eq!(fault, actual_fault);
+        let fault = get_mock_fault();
+        match mem_store.store(fault.name.as_str(), &fault) {
+            Ok(val) => {
+                assert_eq!(true, val);
             }
-            None => {}
+            Err(e) => {
+                panic!("store test failed {}", e);
+            }
         };
+    }
+
+    #[test]
+    fn test_duplicate_store() {
+        let mem_store = mem_store::MemStore::new();
+
+        let mut fault = get_mock_fault();
+        match mem_store.store(fault.name.as_str(), &fault) {
+            Ok(val) => {
+                assert_eq!(true, val);
+            }
+            Err(e) => {
+                panic!("store failed {}", e);
+            }
+        };
+
+        fault.command = "GET".to_string();
+
+        match mem_store.store(fault.name.as_str(), &fault) {
+            Ok(val) => {
+                assert_eq!(true, val);
+            }
+            Err(e) => {
+                panic!("store fault test failed {}", e);
+            }
+        };
+
+        match mem_store.get_by_fault_name(fault.name.as_str()) {
+            Ok(fault) => {
+                assert_eq!(fault.command, "GET");
+            }
+            Err(e) => {
+                panic!("{}", e);
+            }
+        }
+    }
+
+    #[test]
+    fn test_get_fault_by_name() {
+        let mem_store = mem_store::MemStore::new();
+
+        let fault = get_mock_fault();
+        match mem_store.store(fault.name.as_str(), &fault) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("store fault test failed {}", e);
+            }
+        }
+
+        match mem_store.get_by_fault_name(fault.name.as_str()) {
+            Ok(fault) => {
+                assert_eq!(fault, get_mock_fault());
+            }
+            Err(e) => {
+                panic!("get_by_fault_name test failed {}", e);
+            }
+        }
+    }
+
+    #[test]
+    fn test_get_all_faults() {
+        let mem_store = mem_store::MemStore::new();
+
+        let mock_faults = vec![
+            Fault {
+                name: "delay 10 milliseconds".to_string(),
+                description: Some("inject a delay of 10 milliseconds".to_string()),
+                fault_type: "delay".to_string(),
+                duration: Some(20),
+                error_msg: None,
+                command: "SET".to_string(),
+            },
+            Fault {
+                name: "SET Error".to_string(),
+                description: Some("inject set error".to_string()),
+                fault_type: "error".to_string(),
+                duration: None,
+                error_msg: Some("SET ERROR".to_string()),
+                command: "SET".to_string(),
+            },
+        ];
+
+        for mock_fault in &mock_faults {
+            match mem_store.store(mock_fault.name.as_str(), &mock_fault) {
+                Ok(_) => {}
+                Err(e) => {
+                    panic!("store fault test failed {}", e);
+                }
+            }
+        }
+
+        match mem_store.get_all_faults() {
+            Ok(faults) => {
+                for (i, fault) in faults.into_iter().enumerate() {
+                    assert_eq!(&fault.name, &mock_faults[i].name);
+                }
+            }
+            Err(e) => {
+                panic!("get_all_faults test failed {}", e);
+            }
+        }
+    }
+
+    #[test]
+    fn test_delete_fault() {
+        let mem_store = mem_store::MemStore::new();
+
+        let fault = get_mock_fault();
+        match mem_store.store(fault.name.as_str(), &fault) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!("store fault test failed {}", e);
+            }
+        }
+
+        match mem_store.delete_fault(fault.name.as_str()) {
+            Ok(is_deleted) => {
+                assert_eq!(is_deleted, true);
+            }
+            Err(e) => {
+                panic!("delete fault test failed: {}", e);
+            }
+        }
+    }
+
+    #[test]
+    fn test_delete_invalid_fault() {
+        let mem_store = mem_store::MemStore::new();
+
+        match mem_store.delete_fault("invalid_fault") {
+            Ok(is_deleted) => {
+                assert_eq!(is_deleted, false);
+            }
+            Err(e) => {
+                panic!("delete fault test failed: {}", e);
+            }
+        }
+    }
+
+    fn get_mock_fault() -> Fault {
+        Fault {
+            name: "delay 10 millimilliseconds".to_string(),
+            description: Some("inject a delay of 10 milliseconds".to_string()),
+            fault_type: "delay".to_string(),
+            duration: Some(20),
+            error_msg: None,
+            command: "SET".to_string(),
+        }
     }
 }
