@@ -13,8 +13,8 @@ use tokio::net::TcpListener;
 extern crate serde_derive;
 
 mod config;
-mod fault_config_server;
 mod proxy;
+mod server;
 mod store;
 
 fn init_logger() {
@@ -45,7 +45,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     ));
 
     // run the fault config server
-    fault_config_server::routes::run(fault_store);
+    server::routes::run(fault_store);
 
     while let Ok((inbound, _)) = listener.accept().await {
         let proxy = proxy.clone();

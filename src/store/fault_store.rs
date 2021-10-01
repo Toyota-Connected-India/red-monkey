@@ -1,4 +1,7 @@
+use chrono::{DateTime, Utc};
 use std::fmt;
+
+const STORE_ERROR_CODE: &str = "store_error";
 
 /// Fault represents fault configurations that can be applied on an incoming request
 /// Two types of fault configurations are supported - `delay` and `error`
@@ -49,6 +52,9 @@ pub struct Fault {
 
     /// command accepts any valid `redis` command
     pub command: String,
+
+    // last_modified holds the timestamp at which the fault is created or last modified
+    pub last_modified: Option<DateTime<Utc>>,
 }
 
 /// A trait providing methods for pluggable data store
@@ -88,12 +94,14 @@ impl Clone for Box<dyn FaultStore> {
 /// StoreError is a representation of any data store related errors.
 #[derive(Debug)]
 pub struct StoreError {
-    message: String,
+    pub code: String,
+    pub message: String,
 }
 
 impl StoreError {
     pub fn new(msg: &str) -> Self {
         StoreError {
+            code: STORE_ERROR_CODE.to_string(),
             message: msg.to_string(),
         }
     }

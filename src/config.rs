@@ -18,7 +18,7 @@ pub fn get_config() -> Result<Config, envy::Error> {
 }
 
 fn default_proxy_port() -> String {
-    String::from("6350")
+    String::from("127.0.0.1:6350")
 }
 
 fn default_tls_value() -> bool {

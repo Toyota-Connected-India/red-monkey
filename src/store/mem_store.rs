@@ -62,6 +62,7 @@ impl FaultStore for MemStore {
 mod tests {
     use crate::store::fault_store::*;
     use crate::store::mem_store;
+    use chrono::{Duration, Utc};
 
     #[test]
     fn test_store() {
@@ -147,6 +148,7 @@ mod tests {
                 duration: Some(20),
                 error_msg: None,
                 command: "SET".to_string(),
+                last_modified: Some(Utc::now()),
             },
             Fault {
                 name: "SET Error".to_string(),
@@ -155,6 +157,7 @@ mod tests {
                 duration: None,
                 error_msg: Some("SET ERROR".to_string()),
                 command: "SET".to_string(),
+                last_modified: Some(Utc::now() + Duration::minutes(1)),
             },
         ];
 
@@ -169,8 +172,14 @@ mod tests {
 
         match mem_store.get_all_faults() {
             Ok(faults) => {
+                let n = mock_faults.len();
+                assert_eq!(faults.len(), n);
+
+                let mut faults = faults.clone();
+                faults.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+
                 for (i, fault) in faults.into_iter().enumerate() {
-                    assert_eq!(&fault.name, &mock_faults[i].name);
+                    assert_eq!(&fault.name, &mock_faults[n - i - 1].name);
                 }
             }
             Err(e) => {
@@ -223,6 +232,7 @@ mod tests {
             duration: Some(20),
             error_msg: None,
             command: "SET".to_string(),
+            last_modified: None,
         }
     }
 }

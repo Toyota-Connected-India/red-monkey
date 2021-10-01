@@ -11,6 +11,8 @@ envy = "0.4"
 redis = "0.19.0"
 serde = "1.0.117"
 serde_derive = "1.0.117"
+bincode = "1.0"
+serde_json = "1"
 log  = "0.4.11"
 env_logger = "0.8.1"
 futures = "0.3.8"
@@ -21,6 +23,7 @@ bytes = "1"
 rocket = "0.4.3"
 rocket_contrib = "0.4.3" 
 rocket_codegen = "0.4.3"
+chrono = {version="0.4.19", features=["serde"]}
 
 [[example]]
 name = "cmd"
