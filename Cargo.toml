@@ -24,6 +24,8 @@ rocket = "0.4.3"
 rocket_contrib = "0.4.3" 
 rocket_codegen = "0.4.3"
 chrono = {version="0.4.19", features=["serde"]}
+resp = "^0.3.6"
+thiserror = "1.0"
 
 [[example]]
 name = "cmd"

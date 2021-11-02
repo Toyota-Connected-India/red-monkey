@@ -1,8 +1,9 @@
 use crate::server::handler::*;
 use crate::store::fault_store::FaultStore;
 use rocket::*;
+use std::error::Error;
 
-pub fn run(fault_store: Box<dyn FaultStore + Send + Sync>) {
+pub async fn run(fault_store: Box<dyn FaultStore + Send + Sync>) -> Result<(), Box<dyn Error>> {
     rocket::ignite()
         .mount(
             "/",
@@ -16,4 +17,6 @@ pub fn run(fault_store: Box<dyn FaultStore + Send + Sync>) {
         )
         .manage(fault_store)
         .launch();
+
+    Ok(())
 }

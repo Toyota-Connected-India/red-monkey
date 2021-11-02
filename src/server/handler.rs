@@ -41,7 +41,7 @@ impl<'a> Responder<'a> for ServerErrorResponse {
     }
 }
 
-// store_fault is the handler of POST /fault endpoint
+// store_fault is the handler of POST /fault endpoint.
 // On success, returns the response with Created (201) HTTP status.
 // On failure, returns the response with Internal Server Error (500) HTTP status.
 #[post("/fault", format = "json", data = "<fault>")]
@@ -67,8 +67,8 @@ pub fn store_fault(
     }
 }
 
-// get_fault is the handler of GET /fault/<fault_name> endpoint
-// On success, returns the fault config for the given fault name <name> with 200 HTTP status.
+// get_fault is the handler of GET /fault/<fault_name> endpoint.
+// On success, returns the fault config for the given fault name <fault_name> with 200 HTTP status.
 // On failure, returns the error response with 500 HTTP status code.
 #[get("/fault/<fault_name>", format = "json")]
 pub fn get_fault(
@@ -86,7 +86,7 @@ pub fn get_fault(
     }
 }
 
-// get_all_faults is the handler of GET /faults endpoint
+// get_all_faults is the handler of GET /faults endpoint.
 // On success, returns all the fault configs with 200 HTTP status code.
 // On failure, returns the error response with 500 HTTP status code.
 #[get("/faults", format = "json")]
@@ -115,7 +115,7 @@ pub fn get_all_faults(
     }
 }
 
-// delete_fault is the handler of DELETE /fault/<fault_name> endpoint
+// delete_fault is the handler of DELETE /fault/<fault_name> endpoint.
 // DELETE /fault/<fault_name> endpoint is idempotent.
 // On successful delete, it returns 204 No Content HTTP status.
 // On failure, returns the error response with 500 HTTP status code.
@@ -138,7 +138,7 @@ pub fn delete_fault(
     }
 }
 
-// delete_all_faults is the handler for DELETE /faults
+// delete_all_faults is the handler for DELETE /faults.
 // DELETE /faults endpoint is idempotent.
 // On successful delete, it returns 204 No Content HTTP status.
 // On failure, returns the error response with 500 HTTP status code.

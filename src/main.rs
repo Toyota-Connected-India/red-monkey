@@ -35,7 +35,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     debug!("env configs: {:?}", config);
 
     let listener = TcpListener::bind(&config.proxy_port).await?;
-    info!("Listening on port: {}", config.proxy_port);
 
     let fault_store = store::mem_store::MemStore::new();
 
@@ -44,9 +43,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         proxy::faulter::Faulter::new(fault_store.clone_box()),
     ));
 
-    // run the fault config server
-    server::routes::run(fault_store);
-
+    info!("Listening on port: {}", config.proxy_port);
     while let Ok((inbound, _)) = listener.accept().await {
         let proxy = proxy.clone();
         debug!("request received");
@@ -60,6 +57,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
             })
             .await;
     }
+
+    // run the fault config server
+    server::routes::run(fault_store).await?;
 
     Ok(())
 }

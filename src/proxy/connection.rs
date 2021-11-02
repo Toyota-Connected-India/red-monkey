@@ -1,5 +1,4 @@
 use crate::proxy::faulter::Faulter;
-use std::error::Error;
 use std::fmt;
 
 use bytes::Bytes;
@@ -21,6 +20,8 @@ pub struct Connection {
     redis_server_addr: &'static str,
     faulter: Faulter,
 }
+
+type Error = Box<dyn std::error::Error>;
 
 pub struct ConnectionError;
 
@@ -48,7 +49,7 @@ impl Connection {
     pub async fn handle_connection(
         &self,
         mut inbound_stream: TcpStream,
-    ) -> std::result::Result<(), Box<dyn Error>> {
+    ) -> std::result::Result<(), Error> {
         let mut outbound_stream = TcpStream::connect(self.redis_server_addr).await?;
 
         let (client_read_inbound, mut client_write_inbound) = inbound_stream.split();
@@ -61,7 +62,7 @@ impl Connection {
             match &buf {
                 Ok(request_payload) => {
                     let request_payload = std::str::from_utf8(&request_payload).unwrap();
-                    self.faulter.check_fault(request_payload);
+                    self.faulter.apply_fault(request_payload).unwrap();
                 }
 
                 Err(_) => {}
