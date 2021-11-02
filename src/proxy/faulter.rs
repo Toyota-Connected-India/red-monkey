@@ -1,6 +1,7 @@
 use crate::proxy::resp_util;
-use crate::store::fault_store::FaultStore;
+use crate::store::fault_store::{Fault, FaultStore, DELAY_FAULT, ERROR_FAULT};
 use log::{debug, error};
+use std::string::ToString;
 use std::{thread, time};
 
 #[derive(Clone)]
@@ -25,48 +26,37 @@ impl Faulter {
         let result = resp_util::decode(req_body);
 
         match result {
-            Ok(val) => {
-                debug!("request body decoded to RESP values: {:?}", val);
-
-                match resp_util::fetch_redis_command(val) {
-                    Ok(val) => {
-                        redis_command = val;
-                    }
-
-                    Err(_) => {}
+            Ok(val) => match resp_util::fetch_redis_command(val) {
+                Ok(val) => {
+                    redis_command = val;
                 }
-            }
+                Err(_) => {
+                    todo!();
+                }
+            },
 
-            Err(err) => {
-                error!("{:?}", err);
+            Err(_) => {
+                todo!();
             }
         };
 
-        debug!("redis_command value: {:?}", redis_command);
-
         let faults = self.fault_store.get_all_faults().unwrap();
+        debug!("faults: {:?}", faults);
 
         for fault in faults {
             if redis_command.to_lowercase() == fault.command.to_lowercase() {
-                debug!("Command {:?} matched; applying fault", fault.command);
-
                 match fault.fault_type.as_str() {
-                    // TODO: Use string constant
-                    "delay" => {
+                    DELAY_FAULT => {
                         self.apply_delay_fault(fault.duration);
                     }
 
-                    "error" => {
-                        let encoded_err_val = resp_util::encode_error_message(
-                            fault
-                                .error_msg
-                                .ok_or(Box::new(FaulterErrors::EncodeErrMsgError))?,
-                        )?;
-
-                        return Ok(FaulterValue::Value(encoded_err_val));
+                    ERROR_FAULT => {
+                        self.apply_error_fault(fault)?;
                     }
 
-                    _ => {}
+                    _ => {
+                        todo!();
+                    }
                 };
             }
         }
@@ -81,6 +71,16 @@ impl Faulter {
         thread::sleep(sleep_duration);
 
         debug!("Slept {:?} seconds", sleep_duration);
+    }
+
+    pub fn apply_error_fault(&self, fault: Fault) -> Result<FaulterValue, Error> {
+        let encoded_err_msg = resp_util::encode_error_message(
+            fault
+                .error_msg
+                .ok_or(Box::new(FaulterErrors::EncodeErrMsgError))?,
+        )?;
+
+        return Ok(FaulterValue::Value(encoded_err_msg));
     }
 }
 

@@ -1,7 +1,11 @@
 use chrono::{DateTime, Utc};
 use std::fmt;
+use std::string::ToString;
 
 const STORE_ERROR_CODE: &str = "store_error";
+
+pub const DELAY_FAULT: &str = "delay";
+pub const ERROR_FAULT: &str = "error";
 
 /// Fault represents fault configurations that can be applied on an incoming request
 /// Two types of fault configurations are supported - `delay` and `error`
@@ -41,6 +45,8 @@ pub struct Fault {
     pub description: Option<String>,
 
     /// fault_type accepts either `delay` or `error` as the value
+    // TODO: Try to change the fault_type to enum
+    // Use strum_macros: Reference - https://docs.rs/strum_macros/0.22.0/strum_macros/derive.Display.html
     pub fault_type: String,
 
     /// In the event of `delay` fault, the duration of the delay in milliseconds will be set in
@@ -78,7 +84,7 @@ pub trait FaultStoreClone {
 
 impl<T> FaultStoreClone for T
 where
-    T: FaultStore + 'static + Clone,
+    T: FaultStore + 'static + Clone + Send + Sync,
 {
     fn clone_box(&self) -> Box<dyn FaultStore> {
         Box::new(self.clone())

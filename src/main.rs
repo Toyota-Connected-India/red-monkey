@@ -1,12 +1,9 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
 use env_logger::Env;
-use futures::future::FutureExt;
 use log::{debug, error, info};
-use std::boxed::Box;
-use std::error::Error;
 use std::process;
-use std::sync::Arc;
+use tokio::join;
 use tokio::net::TcpListener;
 
 #[macro_use]
@@ -25,7 +22,7 @@ fn init_logger() {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() {
     init_logger();
 
     let config = config::get_config().unwrap_or_else(|e| {
@@ -34,32 +31,30 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
     debug!("env configs: {:?}", config);
 
-    let listener = TcpListener::bind(&config.proxy_port).await?;
-
     let fault_store = store::mem_store::MemStore::new();
 
-    let proxy = Arc::new(proxy::connection::Connection::new(
-        Box::leak(config.redis_address.into_boxed_str()),
+    let proxy = proxy::connection::Connection::new(
+        config.redis_address.clone(),
         proxy::faulter::Faulter::new(fault_store.clone_box()),
-    ));
+    );
+
+    let fault_config_server_future = tokio::spawn(async move {
+        debug!("Starting fault config server");
+
+        // run the fault config server
+        server::routes::run(fault_store).await.unwrap();
+    });
 
     info!("Listening on port: {}", config.proxy_port);
-    while let Ok((inbound, _)) = listener.accept().await {
-        let proxy = proxy.clone();
-        debug!("request received");
+    let listener = TcpListener::bind(&config.proxy_port).await.unwrap();
 
-        let _transfer = proxy
-            .handle_connection(inbound)
-            .map(|r| {
-                if let Err(e) = r {
-                    error!("Error handling connection: {}", e);
-                }
-            })
-            .await;
-    }
+    let proxy_future = tokio::spawn(async move {
+        loop {
+            debug!("request received");
+            let (inbound, _) = listener.accept().await.unwrap();
+            proxy.clone().handle_connection(inbound).await;
+        }
+    });
 
-    // run the fault config server
-    server::routes::run(fault_store).await?;
-
-    Ok(())
+    join!(fault_config_server_future, proxy_future);
 }

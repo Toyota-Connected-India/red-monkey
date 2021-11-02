@@ -1,5 +1,4 @@
 use crate::proxy::faulter::Faulter;
-use std::fmt;
 
 use bytes::Bytes;
 use futures::{
@@ -17,19 +16,12 @@ use tokio_util::io::StreamReader;
 
 #[derive(Clone)]
 pub struct Connection {
-    redis_server_addr: &'static str,
+    redis_server_addr: String,
     faulter: Faulter,
 }
 
-type Error = Box<dyn std::error::Error>;
-
-pub struct ConnectionError;
-
-impl fmt::Display for ConnectionError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Connection Error:")
-    }
-}
+unsafe impl Send for Connection {}
+unsafe impl Sync for Connection {}
 
 fn into_bytes_stream<R>(r: R) -> impl Stream<Item = Result<Bytes>>
 where
@@ -39,18 +31,17 @@ where
 }
 
 impl Connection {
-    pub fn new(redis_server_addr: &'static str, faulter: Faulter) -> Self {
+    pub fn new(redis_server_addr: String, faulter: Faulter) -> Self {
         Connection {
             redis_server_addr,
             faulter,
         }
     }
 
-    pub async fn handle_connection(
-        &self,
-        mut inbound_stream: TcpStream,
-    ) -> std::result::Result<(), Error> {
-        let mut outbound_stream = TcpStream::connect(self.redis_server_addr).await?;
+    pub async fn handle_connection(&self, mut inbound_stream: TcpStream) {
+        let mut outbound_stream = TcpStream::connect(self.redis_server_addr.as_str())
+            .await
+            .unwrap();
 
         let (client_read_inbound, mut client_write_inbound) = inbound_stream.split();
         let (mut server_read_outbound, mut server_write_outbound) = outbound_stream.split();
@@ -86,8 +77,6 @@ impl Connection {
             client_write_inbound.shutdown().await
         };
 
-        tokio::try_join!(client_to_server, server_to_client)?;
-
-        Ok(())
+        tokio::try_join!(client_to_server, server_to_client).unwrap();
     }
 }
