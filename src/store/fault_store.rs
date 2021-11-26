@@ -1,6 +1,9 @@
 use chrono::{DateTime, Utc};
 use std::fmt;
 use std::string::ToString;
+use std::sync::{Arc, RwLock};
+
+pub type DB = Arc<RwLock<Box<dyn FaultStore + Send + Sync>>>;
 
 const STORE_ERROR_CODE: &str = "store_error";
 
@@ -73,6 +76,9 @@ pub trait FaultStore: FaultStoreClone {
 
     /// Fetch all the faults from the store
     fn get_all_faults(&self) -> Result<Vec<Fault>, StoreError>;
+
+    /// Fetch the fault that matches the redis command
+    fn get_by_redis_cmd(&self, redis_cmd: &str) -> Option<Fault>;
 
     /// Delete the fault by the given fault name in the store
     fn delete_fault(&self, fault_name: &str) -> Result<bool, StoreError>;

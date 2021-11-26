@@ -1,7 +1,7 @@
 use log::{debug, error};
 use resp::{Decoder, Value};
 
-type Error = Box<dyn ::std::error::Error>;
+use crate::proxy::connection::Error;
 
 // Decodes the request body into Redis RESP values
 //

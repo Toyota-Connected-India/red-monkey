@@ -35,7 +35,7 @@ async fn main() {
 
     let proxy = proxy::connection::Connection::new(
         config.redis_address.clone(),
-        proxy::faulter::Faulter::new(fault_store.clone_box()),
+        proxy::faulter::Faulter::new(fault_store.clone()),
     );
 
     let fault_config_server_future = tokio::spawn(async move {
@@ -51,8 +51,8 @@ async fn main() {
     let proxy_future = tokio::spawn(async move {
         loop {
             debug!("request received");
-            let (inbound, _) = listener.accept().await.unwrap();
-            proxy.clone().handle_connection(inbound).await;
+            let (socket, _addr) = listener.accept().await.unwrap();
+            proxy.clone().handle_connection(socket).await;
         }
     });
 

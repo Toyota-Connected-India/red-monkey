@@ -1,5 +1,6 @@
-use crate::store::fault_store::{Fault, FaultStore, StoreError};
-use log::debug;
+use crate::store::fault_store::{Fault, FaultStore, StoreError, DB};
+use log::{debug, error};
+use std::sync::{Arc, RwLock};
 
 /// MemStore is an in-memory store implementation of FaultStore
 #[derive(Debug, Clone)]
@@ -8,10 +9,10 @@ pub struct MemStore {
 }
 
 impl MemStore {
-    pub fn new() -> Box<dyn FaultStore + Send + Sync> {
-        Box::new(MemStore {
+    pub fn new() -> DB {
+        Arc::new(RwLock::new(Box::new(MemStore {
             store: chashmap::CHashMap::new(),
-        })
+        })))
     }
 }
 
@@ -36,6 +37,24 @@ impl FaultStore for MemStore {
                 format!("Fault {} not found", fault_name).as_str(),
             )),
         }
+    }
+
+    fn get_by_redis_cmd(&self, redis_cmd: &str) -> Option<Fault> {
+        let faults = match self.get_all_faults() {
+            Ok(faults) => faults,
+            Err(e) => {
+                error!("error fetching all faults: {:?}", e);
+                return None;
+            }
+        };
+
+        for fault in faults {
+            if redis_cmd.to_lowercase() == fault.command.to_lowercase() {
+                return Some(fault);
+            }
+        }
+
+        None
     }
 
     fn get_all_faults(&self) -> Result<Vec<Fault>, StoreError> {
@@ -69,7 +88,11 @@ mod tests {
         let mem_store = mem_store::MemStore::new();
 
         let fault = get_mock_fault();
-        match mem_store.store(fault.name.as_str(), &fault) {
+        match mem_store
+            .write()
+            .unwrap()
+            .store(fault.name.as_str(), &fault)
+        {
             Ok(val) => {
                 assert_eq!(true, val);
             }
@@ -84,7 +107,11 @@ mod tests {
         let mem_store = mem_store::MemStore::new();
 
         let mut fault = get_mock_fault();
-        match mem_store.store(fault.name.as_str(), &fault) {
+        match mem_store
+            .write()
+            .unwrap()
+            .store(fault.name.as_str(), &fault)
+        {
             Ok(val) => {
                 assert_eq!(true, val);
             }
@@ -95,7 +122,11 @@ mod tests {
 
         fault.command = "GET".to_string();
 
-        match mem_store.store(fault.name.as_str(), &fault) {
+        match mem_store
+            .write()
+            .unwrap()
+            .store(fault.name.as_str(), &fault)
+        {
             Ok(val) => {
                 assert_eq!(true, val);
             }
@@ -104,14 +135,18 @@ mod tests {
             }
         };
 
-        match mem_store.get_by_fault_name(fault.name.as_str()) {
+        match mem_store
+            .read()
+            .unwrap()
+            .get_by_fault_name(fault.name.as_str())
+        {
             Ok(fault) => {
                 assert_eq!(fault.command, "GET");
             }
             Err(e) => {
                 panic!("{}", e);
             }
-        }
+        };
     }
 
     #[test]
@@ -119,21 +154,29 @@ mod tests {
         let mem_store = mem_store::MemStore::new();
 
         let fault = get_mock_fault();
-        match mem_store.store(fault.name.as_str(), &fault) {
+        match mem_store
+            .write()
+            .unwrap()
+            .store(fault.name.as_str(), &fault)
+        {
             Ok(_) => {}
             Err(e) => {
                 panic!("store fault test failed {}", e);
             }
         }
 
-        match mem_store.get_by_fault_name(fault.name.as_str()) {
+        match mem_store
+            .read()
+            .unwrap()
+            .get_by_fault_name(fault.name.as_str())
+        {
             Ok(fault) => {
                 assert_eq!(fault, get_mock_fault());
             }
             Err(e) => {
                 panic!("get_by_fault_name test failed {}", e);
             }
-        }
+        };
     }
 
     #[test]
@@ -162,15 +205,19 @@ mod tests {
         ];
 
         for mock_fault in &mock_faults {
-            match mem_store.store(mock_fault.name.as_str(), &mock_fault) {
+            match mem_store
+                .write()
+                .unwrap()
+                .store(mock_fault.name.as_str(), &mock_fault)
+            {
                 Ok(_) => {}
                 Err(e) => {
                     panic!("store fault test failed {}", e);
                 }
-            }
+            };
         }
 
-        match mem_store.get_all_faults() {
+        match mem_store.read().unwrap().get_all_faults() {
             Ok(faults) => {
                 let n = mock_faults.len();
                 assert_eq!(faults.len(), n);
@@ -185,7 +232,7 @@ mod tests {
             Err(e) => {
                 panic!("get_all_faults test failed {}", e);
             }
-        }
+        };
     }
 
     #[test]
@@ -193,35 +240,39 @@ mod tests {
         let mem_store = mem_store::MemStore::new();
 
         let fault = get_mock_fault();
-        match mem_store.store(fault.name.as_str(), &fault) {
+        match mem_store
+            .write()
+            .unwrap()
+            .store(fault.name.as_str(), &fault)
+        {
             Ok(_) => {}
             Err(e) => {
                 panic!("store fault test failed {}", e);
             }
         }
 
-        match mem_store.delete_fault(fault.name.as_str()) {
+        match mem_store.write().unwrap().delete_fault(fault.name.as_str()) {
             Ok(is_deleted) => {
                 assert_eq!(is_deleted, true);
             }
             Err(e) => {
                 panic!("delete fault test failed: {}", e);
             }
-        }
+        };
     }
 
     #[test]
     fn test_delete_invalid_fault() {
         let mem_store = mem_store::MemStore::new();
 
-        match mem_store.delete_fault("invalid_fault") {
+        match mem_store.write().unwrap().delete_fault("invalid_fault") {
             Ok(is_deleted) => {
                 assert_eq!(is_deleted, false);
             }
             Err(e) => {
                 panic!("delete fault test failed: {}", e);
             }
-        }
+        };
     }
 
     fn get_mock_fault() -> Fault {

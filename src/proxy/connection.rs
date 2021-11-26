@@ -14,6 +14,8 @@ use tokio::net::TcpStream;
 use tokio_util::codec;
 use tokio_util::io::StreamReader;
 
+pub type Error = Box<dyn ::std::error::Error>;
+
 #[derive(Clone)]
 pub struct Connection {
     redis_server_addr: String,

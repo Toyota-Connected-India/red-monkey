@@ -1,5 +1,5 @@
 use crate::store::fault_store::Fault;
-use crate::store::fault_store::FaultStore;
+use crate::store::fault_store::DB;
 use chrono::Utc;
 use log::{debug, error, info};
 use rocket;
@@ -47,12 +47,14 @@ impl<'a> Responder<'a> for ServerErrorResponse {
 #[post("/fault", format = "json", data = "<fault>")]
 pub fn store_fault(
     fault: Json<Fault>,
-    fault_store: State<Box<dyn FaultStore + Send + Sync>>,
+    fault_store: State<DB>,
 ) -> Result<Status, ServerErrorResponse> {
     debug!("create fault: fault name: {:?}", fault.name);
 
     let mut fault = fault.clone();
     fault.last_modified = Some(Utc::now());
+
+    let fault_store = fault_store.write().unwrap();
 
     match fault_store.store(&fault.name, &fault) {
         Ok(_) => {
@@ -73,9 +75,11 @@ pub fn store_fault(
 #[get("/fault/<fault_name>", format = "json")]
 pub fn get_fault(
     fault_name: String,
-    fault_store: State<Box<dyn FaultStore + Send + Sync>>,
+    fault_store: State<DB>,
 ) -> Result<Json<Fault>, ServerErrorResponse> {
     debug!("get fault by name: {:?}", fault_name);
+
+    let fault_store = fault_store.read().unwrap();
 
     match fault_store.get_by_fault_name(fault_name.as_str()) {
         Ok(fault) => Ok(Json(fault)),
@@ -90,10 +94,10 @@ pub fn get_fault(
 // On success, returns all the fault configs with 200 HTTP status code.
 // On failure, returns the error response with 500 HTTP status code.
 #[get("/faults", format = "json")]
-pub fn get_all_faults(
-    fault_store: State<Box<dyn FaultStore + Send + Sync>>,
-) -> Result<Json<Vec<Fault>>, ServerErrorResponse> {
+pub fn get_all_faults(fault_store: State<DB>) -> Result<Json<Vec<Fault>>, ServerErrorResponse> {
     debug!("get all faults");
+    let fault_store = fault_store.read().unwrap();
+
     let faults = fault_store.get_all_faults();
 
     match faults {
@@ -122,9 +126,11 @@ pub fn get_all_faults(
 #[delete("/fault/<fault_name>")]
 pub fn delete_fault(
     fault_name: String,
-    fault_store: State<Box<dyn FaultStore + Send + Sync>>,
+    fault_store: State<DB>,
 ) -> Result<Status, ServerErrorResponse> {
     debug!("delete fault: {}", fault_name);
+
+    let fault_store = fault_store.write().unwrap();
 
     match fault_store.delete_fault(fault_name.as_str()) {
         Ok(_) => {
@@ -143,11 +149,10 @@ pub fn delete_fault(
 // On successful delete, it returns 204 No Content HTTP status.
 // On failure, returns the error response with 500 HTTP status code.
 #[delete("/faults")]
-pub fn delete_all_faults(
-    fault_store: State<Box<dyn FaultStore + Send + Sync>>,
-) -> Result<Status, ServerErrorResponse> {
+pub fn delete_all_faults(fault_store: State<DB>) -> Result<Status, ServerErrorResponse> {
     debug!("delete all faults");
 
+    let fault_store = fault_store.write().unwrap();
     let faults = fault_store.get_all_faults().unwrap();
 
     for fault in faults {

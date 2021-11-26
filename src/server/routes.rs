@@ -1,9 +1,9 @@
 use crate::server::handler::*;
-use crate::store::fault_store::FaultStore;
+use crate::store::fault_store::DB;
 use rocket::*;
 use std::error::Error;
 
-pub async fn run(fault_store: Box<dyn FaultStore + Send + Sync>) -> Result<(), Box<dyn Error>> {
+pub async fn run(fault_store: DB) -> Result<(), Box<dyn Error>> {
     rocket::ignite()
         .mount(
             "/",
