@@ -31,7 +31,7 @@ async fn main() {
     });
     debug!("env configs: {:?}", config);
 
-    let fault_store = store::mem_store::MemStore::new();
+    let fault_store = store::mem_store::MemStore::new_db();
 
     let proxy = proxy::connection::Connection::new(
         config.redis_address.clone(),
@@ -56,5 +56,5 @@ async fn main() {
         }
     });
 
-    join!(fault_config_server_future, proxy_future);
+    let _ = join!(fault_config_server_future, proxy_future);
 }

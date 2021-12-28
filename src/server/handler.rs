@@ -106,8 +106,7 @@ pub fn get_all_faults(fault_store: State<DB>) -> Result<Json<Vec<Fault>>, Server
             Err(ServerErrorResponse::new(err.code, err.message))
         }
 
-        Ok(faults) => {
-            let mut faults = faults.clone();
+        Ok(mut faults) => {
             faults.sort_by(|a, b| {
                 b.last_modified
                     .unwrap()
@@ -180,7 +179,7 @@ mod tests {
     use rocket::routes;
 
     fn setup_fault_config_server() -> rocket::Rocket {
-        let fault_store = crate::store::mem_store::MemStore::new();
+        let fault_store = crate::store::mem_store::MemStore::new_db();
         rocket::ignite()
             .mount(
                 "/",

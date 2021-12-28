@@ -1,3 +1,4 @@
+#![allow(clippy::enum_variant_names)]
 use log::{debug, error};
 use resp::{Decoder, Value};
 

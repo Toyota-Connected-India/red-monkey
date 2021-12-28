@@ -54,7 +54,7 @@ impl Connection {
 
             match &buf {
                 Ok(request_payload) => {
-                    let request_payload = std::str::from_utf8(&request_payload).unwrap();
+                    let request_payload = std::str::from_utf8(request_payload).unwrap();
                     self.faulter.apply_fault(request_payload).unwrap();
                 }
 

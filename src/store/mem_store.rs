@@ -9,7 +9,7 @@ pub struct MemStore {
 }
 
 impl MemStore {
-    pub fn new() -> DB {
+    pub fn new_db() -> DB {
         Arc::new(RwLock::new(Box::new(MemStore {
             store: chashmap::CHashMap::new(),
         })))
@@ -85,7 +85,7 @@ mod tests {
 
     #[test]
     fn test_store() {
-        let mem_store = mem_store::MemStore::new();
+        let mem_store = mem_store::MemStore::new_db();
 
         let fault = get_mock_fault();
         match mem_store
@@ -104,7 +104,7 @@ mod tests {
 
     #[test]
     fn test_duplicate_store() {
-        let mem_store = mem_store::MemStore::new();
+        let mem_store = mem_store::MemStore::new_db();
 
         let mut fault = get_mock_fault();
         match mem_store
@@ -151,7 +151,7 @@ mod tests {
 
     #[test]
     fn test_get_fault_by_name() {
-        let mem_store = mem_store::MemStore::new();
+        let mem_store = mem_store::MemStore::new_db();
 
         let fault = get_mock_fault();
         match mem_store
@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_get_all_faults() {
-        let mem_store = mem_store::MemStore::new();
+        let mem_store = mem_store::MemStore::new_db();
 
         let mock_faults = vec![
             Fault {
@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn test_delete_fault() {
-        let mem_store = mem_store::MemStore::new();
+        let mem_store = mem_store::MemStore::new_db();
 
         let fault = get_mock_fault();
         match mem_store
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_delete_invalid_fault() {
-        let mem_store = mem_store::MemStore::new();
+        let mem_store = mem_store::MemStore::new_db();
 
         match mem_store.write().unwrap().delete_fault("invalid_fault") {
             Ok(is_deleted) => {

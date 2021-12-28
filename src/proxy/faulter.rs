@@ -57,18 +57,16 @@ impl Faulter {
             DELAY_FAULT => {
                 info!("applying delay fault: {:?}", fault);
                 self.apply_delay_fault(fault.duration);
-                return Ok(FaulterValue::Null);
+                Ok(FaulterValue::Null)
             }
 
             ERROR_FAULT => {
                 info!("applying error fault: {:?}", fault);
-                return self.apply_error_fault(fault);
+                self.apply_error_fault(fault)
             }
 
-            _ => {
-                return Err(Box::new(FaulterErrors::UnsupportedFaultTypeError));
-            }
-        };
+            _ => Err(Box::new(FaulterErrors::UnsupportedFaultTypeError)),
+        }
     }
 
     pub fn apply_delay_fault(&self, sleep_duration: Option<u64>) {
@@ -84,10 +82,10 @@ impl Faulter {
         let encoded_err_msg = resp_util::encode_error_message(
             fault
                 .error_msg
-                .ok_or(Box::new(FaulterErrors::EncodeErrMsgError))?,
+                .ok_or_else(|| Box::new(FaulterErrors::EncodeErrMsgError))?,
         )?;
 
-        return Ok(FaulterValue::Value(encoded_err_msg));
+        Ok(FaulterValue::Value(encoded_err_msg))
     }
 }
 
@@ -129,7 +127,7 @@ mod tests {
             },
         ];
 
-        let fault_store = store::mem_store::MemStore::new();
+        let fault_store = store::mem_store::MemStore::new_db();
 
         for fault in mock_faults {
             fault_store
