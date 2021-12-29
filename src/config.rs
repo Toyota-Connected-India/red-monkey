@@ -6,8 +6,6 @@ pub struct Config {
     pub redis_address: String,
     #[serde(default = "default_tls_value")]
     pub is_tls_on: bool,
-    #[serde(default = "default_fault_api_port")]
-    pub fault_api_port: String,
 }
 
 pub fn get_config() -> Result<Config, envy::Error> {
@@ -23,10 +21,6 @@ fn default_proxy_port() -> String {
 
 fn default_tls_value() -> bool {
     false
-}
-
-fn default_fault_api_port() -> String {
-    String::from("8083")
 }
 
 fn default_redis_address() -> String {

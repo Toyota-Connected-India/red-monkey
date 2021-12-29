@@ -1,0 +1,98 @@
+swagger: '2.0'
+info:
+  version: '1.0'
+  title: red-monkey
+  contact: {}
+host: localhost:8000
+basePath: /
+securityDefinitions: {}
+schemes:
+- http
+consumes:
+- application/json
+produces:
+- application/json
+paths:
+  /fault:
+    post:
+      summary: Create fault
+      tags:
+      - Misc
+      operationId: Createfault
+      deprecated: false
+      produces:
+      - application/json
+      parameters:
+      - name: Body
+        in: body
+        required: true
+        description: ''
+        schema:
+          $ref: '#/definitions/CreateFaultRequest'
+      responses:
+        '200':
+          description: ''
+          headers: {}
+  /:
+    get:
+      summary: Get fault
+      tags:
+      - Misc
+      operationId: Getfault
+      deprecated: false
+      produces:
+      - application/json
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          headers: {}
+    delete:
+      summary: Delete fault
+      tags:
+      - Misc
+      operationId: Deletefault
+      deprecated: false
+      produces:
+      - application/json
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          headers: {}
+
+definitions:
+  CreateFaultRequest:
+    title: CreateFaultRequest
+    example:
+      name: get_custom_err
+      description: get custom error
+      fault_type: error
+      error: KEY not found
+      percentage: 100
+      command: GET
+    type: object
+    properties:
+      name:
+        type: string
+      description:
+        type: string
+      fault_type:
+        type: string
+      error:
+        type: string
+      percentage:
+        type: integer
+        format: int32
+      command:
+        type: string
+    required:
+    - name
+    - description
+    - fault_type
+    - error
+    - percentage
+    - command
+tags:
+- name: Misc
+  description: ''

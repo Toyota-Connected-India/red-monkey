@@ -1,4 +1,4 @@
-use crate::server::handler::*;
+use crate::fault_config_server::handler::*;
 use crate::store::fault_store::DB;
 use rocket::*;
 use std::error::Error;

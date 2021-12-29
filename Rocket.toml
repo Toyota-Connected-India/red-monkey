@@ -3,3 +3,5 @@ address = "localhost"
 port = 8000
 log = "normal"
 limits = { forms = 32768 }
+
+[production]

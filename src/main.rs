@@ -10,8 +10,8 @@ use tokio::net::TcpListener;
 extern crate serde_derive;
 
 mod config;
+mod fault_config_server;
 mod proxy;
-mod server;
 mod store;
 
 fn init_logger() {
@@ -42,7 +42,7 @@ async fn main() {
         debug!("Starting fault config server");
 
         // run the fault config server
-        server::routes::run(fault_store).await.unwrap();
+        fault_config_server::routes::run(fault_store).await.unwrap();
     });
 
     info!("Listening on port: {}", config.proxy_port);
