@@ -45,8 +45,8 @@ async fn main() {
         fault_config_server::routes::run(fault_store).await.unwrap();
     });
 
-    info!("Listening on port: {}", config.proxy_port);
-    let listener = TcpListener::bind(&config.proxy_port).await.unwrap();
+    info!("Listening on port: {}", config.proxy_address);
+    let listener = TcpListener::bind(&config.proxy_address).await.unwrap();
 
     let proxy_future = tokio::spawn(async move {
         loop {
