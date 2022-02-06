@@ -72,7 +72,7 @@ impl Faulter {
     pub fn apply_delay_fault(&self, sleep_duration: Option<u64>) {
         debug!("Sleep for {:?} seconds", sleep_duration);
 
-        let sleep_duration = time::Duration::from_secs(sleep_duration.unwrap());
+        let sleep_duration = time::Duration::from_millis(sleep_duration.unwrap());
         thread::sleep(sleep_duration);
 
         debug!("Slept {:?} seconds", sleep_duration);
@@ -108,10 +108,10 @@ mod tests {
     fn get_mock_fault_store() -> DB {
         let mock_faults = vec![
             Fault {
-                name: "delay 10 milliseconds".to_string(),
-                description: Some("inject a delay of 10 milliseconds".to_string()),
+                name: "delay 1 second".to_string(),
+                description: Some("inject a delay of 1 second".to_string()),
                 fault_type: "delay".to_string(),
-                duration: Some(2),
+                duration: Some(1000),
                 error_msg: None,
                 command: "GET".to_string(),
                 last_modified: Some(Utc::now()),
@@ -170,6 +170,6 @@ mod tests {
         println!("elapsed duration is: {:?}", duration.as_secs());
 
         assert_eq!(res.is_ok(), true);
-        assert_eq!(duration.as_secs() >= 2, true);
+        assert_eq!(duration.as_secs() >= 1, true);
     }
 }
