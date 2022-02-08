@@ -17,6 +17,11 @@ RUN cargo install --path . --verbose
 FROM debian:buster-slim
 COPY --from=builder /usr/local/cargo/bin/red-monkey /bin
 
+RUN apt-get update \
+ && apt-get install -y ca-certificates
+
+RUN apt install libssl1.1
+
 EXPOSE 8000
 EXPOSE 6350
 

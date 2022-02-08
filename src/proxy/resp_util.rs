@@ -2,8 +2,6 @@
 use log::{debug, error};
 use resp::{Decoder, Value};
 
-use crate::proxy::connection::Error;
-
 // Decodes the request body into Redis RESP values
 //
 // Returs Ok(resp::Value) on success
@@ -24,19 +22,19 @@ use crate::proxy::connection::Error;
 //      },
 //  };
 // ```
-pub fn decode(req_body: &str) -> Result<Value, Error> {
+pub fn decode(req_body: &str) -> Result<Value, anyhow::Error> {
     let mut decoder = Decoder::new();
 
     match decoder.feed(req_body.as_bytes()) {
         Ok(_) => {}
         Err(err) => {
-            return Err(Box::new(RespErrors::DecoderFeedError(Box::new(err))));
+            return Err(RespErrors::DecoderFeedError(err.to_string()).into());
         }
     };
 
     match decoder.read() {
         Some(val) => Ok(val),
-        None => Err(Box::new(RespErrors::DecodeError)),
+        None => Err(RespErrors::DecodeError.into()),
     }
 }
 
@@ -64,21 +62,21 @@ pub fn decode(req_body: &str) -> Result<Value, Error> {
 //      },
 //  };
 // ```
-pub fn fetch_redis_command(resp_vals: resp::Value) -> Result<String, Error> {
+pub fn fetch_redis_command(resp_vals: resp::Value) -> Result<String, anyhow::Error> {
     match resp_vals {
         Value::Array(arr) => {
             if arr.is_empty() {
-                return Err(Box::new(RespErrors::RespArrEmptyError));
+                return Err(RespErrors::RespArrEmptyError.into());
             }
             debug!("value {:?}", arr[0]);
 
             match arr[0].clone() {
                 Value::Bulk(v) => Ok(v),
                 Value::String(v) => Ok(v),
-                _ => Err(Box::new(RespErrors::UnsupportedRespArrValError)),
+                _ => Err(RespErrors::UnsupportedRespArrValError.into()),
             }
         }
-        _ => Err(Box::new(RespErrors::UnsupportedRespValError)),
+        _ => Err(RespErrors::UnsupportedRespValError.into()),
     }
 }
 
@@ -93,7 +91,7 @@ pub fn fetch_redis_command(resp_vals: resp::Value) -> Result<String, Error> {
 //
 // let encoded_error_message = resp_util::encode_error_message("Error message".to_string())?;
 // ```
-pub fn encode_error_message(err_message: String) -> Result<Vec<u8>, Error> {
+pub fn encode_error_message(err_message: String) -> Result<Vec<u8>, anyhow::Error> {
     let err_val = Value::Error(err_message);
     Ok(err_val.encode())
 }
@@ -102,8 +100,8 @@ pub fn encode_error_message(err_message: String) -> Result<Vec<u8>, Error> {
 pub enum RespErrors {
     #[error("Error decoding request body to RESP values")]
     DecodeError,
-    #[error("Error feeding request body to RESP decoder")]
-    DecoderFeedError(Box<dyn std::error::Error>),
+    #[error("Error feeding request body to RESP decoder: {0}")]
+    DecoderFeedError(String),
     #[error("Error as RESP array is empty")]
     RespArrEmptyError,
     #[error("Error as unsupported resp array value type for a redis command")]

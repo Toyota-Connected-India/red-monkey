@@ -5,7 +5,8 @@ use std::sync::{Arc, RwLock};
 
 pub type DB = Arc<RwLock<Box<dyn FaultStore + Send + Sync>>>;
 
-const STORE_ERROR_CODE: &str = "store_error";
+pub const STORE_ERROR_CODE: &str = "store_error";
+pub const LOCK_ERROR_CODE: &str = "lock_error";
 
 pub const DELAY_FAULT: &str = "delay";
 pub const ERROR_FAULT: &str = "error";

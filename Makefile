@@ -2,16 +2,22 @@ SHELL := /bin/bash -e
 WORKDIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 build: 
-	docker build -t red-monkey .
+	cargo build --release 
 
 run:
+	cargo run
+
+docker-build: 
+	docker build -t red-monkey .
+
+docker-run:
 	docker run -it --rm -p 6350:6350 -p 8000:8000 --env-file ./docker.env red-monkey:latest
 
-componse-build: 
+docker-componse-build: 
 	docker-compose -f ./docker-compose.yml \
 		-p proxy build
 
-compose-run:
+docker-compose-run:
 	docker-compose -f ./docker-compose.yml \
 		-p proxy up	
 

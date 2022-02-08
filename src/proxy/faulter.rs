@@ -1,4 +1,4 @@
-use crate::proxy::{connection::Error, resp_util};
+use crate::proxy::resp_util;
 use crate::store::fault_store::{Fault, FaultStore, DB, DELAY_FAULT, ERROR_FAULT};
 use log::{debug, error, info};
 use std::str;
@@ -21,7 +21,7 @@ impl Faulter {
         Faulter { fault_store }
     }
 
-    pub fn apply_fault(&self, req_body: &str) -> Result<FaulterValue, Error> {
+    pub fn check_for_fault(&self, req_body: &str) -> Result<FaulterValue, anyhow::Error> {
         let redis_command: String;
         let result = resp_util::decode(req_body);
 
@@ -43,7 +43,11 @@ impl Faulter {
             }
         };
 
-        let fault_store = self.fault_store.read().unwrap();
+        let fault_store = match self.fault_store.read() {
+            Ok(fault_store) => fault_store,
+            Err(err) => anyhow::bail!(err.to_string()),
+        };
+
         let fault_config = fault_store.get_by_redis_cmd(redis_command.as_str());
 
         let fault = match fault_config {
@@ -65,20 +69,22 @@ impl Faulter {
                 self.apply_error_fault(fault)
             }
 
-            _ => Err(Box::new(FaulterErrors::UnsupportedFaultTypeError)),
+            _ => Err(FaulterErrors::UnsupportedFaultTypeError.into()),
         }
     }
 
     pub fn apply_delay_fault(&self, sleep_duration: Option<u64>) {
-        debug!("Sleep for {:?} seconds", sleep_duration);
+        if let Some(sleep_duration) = sleep_duration {
+            info!("Sleeping for {:?} seconds", sleep_duration);
 
-        let sleep_duration = time::Duration::from_millis(sleep_duration.unwrap());
-        thread::sleep(sleep_duration);
+            let sleep_duration = time::Duration::from_millis(sleep_duration);
+            thread::sleep(sleep_duration);
 
-        debug!("Slept {:?} seconds", sleep_duration);
+            debug!("Slept {:?} seconds", sleep_duration);
+        };
     }
 
-    pub fn apply_error_fault(&self, fault: Fault) -> Result<FaulterValue, Error> {
+    pub fn apply_error_fault(&self, fault: Fault) -> Result<FaulterValue, anyhow::Error> {
         let encoded_err_msg = resp_util::encode_error_message(
             fault
                 .error_msg
@@ -145,7 +151,7 @@ mod tests {
         let fault_store = get_mock_fault_store();
         let faulter = Faulter::new(fault_store);
 
-        let res = faulter.apply_fault("*3\r\n$3\r\nset\r\n$4\r\nkey1\r\n$8\r\nvalue100\r\n");
+        let res = faulter.check_for_fault("*3\r\n$3\r\nset\r\n$4\r\nkey1\r\n$8\r\nvalue100\r\n");
         assert_eq!(res.is_ok(), true);
 
         let err_val = res.unwrap();
@@ -165,7 +171,7 @@ mod tests {
         let faulter = Faulter::new(fault_store);
 
         let start = Instant::now();
-        let res = faulter.apply_fault("*2\r\n$3\r\nget\r\n$4\r\nkey1\r\n");
+        let res = faulter.check_for_fault("*2\r\n$3\r\nget\r\n$4\r\nkey1\r\n");
         let duration = start.elapsed();
         println!("elapsed duration is: {:?}", duration.as_secs());
 

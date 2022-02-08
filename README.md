@@ -10,7 +10,7 @@
 
 ## Why red-monkey? 
  
-We believe systems could fail in spite of rigorous testing and the promise of 99.9% availability by cloud providers. Redis, a popular in-memory store that is used in various levels like caching, database and message-broker also can fail. `red-monkey` is a proxy that can help you test the resiliency of your services against the network and custom error failures in Redis.
+We believe systems could fail in spite of rigorous testing and the promise of 99.9% availability by cloud providers. Redis, a popular in-memory store that is used in various levels like caching, database and message-broker also can fail. So, we built a proxy (red-monkey) that can help you test the resiliency of your services against the network and custom error failures in Redis.
  
 ## How to build and run locally? 
 
@@ -37,9 +37,9 @@ make docker-run
 
 ### Environment variables
 
-1. `proxy_port` is the port at which the Redis requests are proxied to the origin Redis server. 
-2. `redis_address` is the address of the origin Redis server.
-3. `is_tls_on` is the boolean value that says whether to establish a TLS connection to the origin Redis server from `red-monkey`.
+1. `PROXY_PORT` is the proxy listener port through which the redis requests are proxied to the origin Redis server. 
+2. `REDIS_ADDRESS` is the address of the origin Redis server.
+3. `IS_REDIS_TLS_CONN` is the boolean value that says whether to establish a TLS connection to the origin Redis server from `red-monkey`.
 4. The HTTP fault configuration server address and port are configured in the `Rocket.toml` file.
 
 ### Fault configuration

@@ -1,5 +1,4 @@
-use crate::store::fault_store::Fault;
-use crate::store::fault_store::DB;
+use crate::store::fault_store::{Fault, DB, LOCK_ERROR_CODE};
 use chrono::Utc;
 use log::{debug, error, info};
 use rocket;
@@ -49,21 +48,23 @@ pub fn store_fault(
     fault: Json<Fault>,
     fault_store: State<DB>,
 ) -> Result<Status, ServerErrorResponse> {
-    debug!("create fault: fault name: {:?}", fault.name);
+    info!("Create fault: fault name: {:?}", fault.name);
 
     let mut fault = fault.clone();
     fault.last_modified = Some(Utc::now());
 
-    let fault_store = fault_store.write().unwrap();
+    let fault_store = fault_store
+        .write()
+        .map_err(|err| ServerErrorResponse::new(LOCK_ERROR_CODE.to_string(), err.to_string()))?;
 
     match fault_store.store(&fault.name, &fault) {
         Ok(_) => {
-            info!("fault {} is stored in the store", fault.name);
+            info!("Fault {} is created in the store", fault.name);
             Ok(Status::Created)
         }
 
         Err(err) => {
-            error!("error storing fault {} in the store: {}", fault.name, err);
+            error!("Error storing fault {} in the store: {}", fault.name, err);
             Err(ServerErrorResponse::new(err.code, err.message))
         }
     }
@@ -77,14 +78,19 @@ pub fn get_fault(
     fault_name: String,
     fault_store: State<DB>,
 ) -> Result<Json<Fault>, ServerErrorResponse> {
-    debug!("get fault by name: {:?}", fault_name);
+    info!("Get fault by name: {:?}", fault_name);
 
-    let fault_store = fault_store.read().unwrap();
+    let fault_store = fault_store
+        .read()
+        .map_err(|err| ServerErrorResponse::new(LOCK_ERROR_CODE.to_string(), err.to_string()))?;
 
     match fault_store.get_by_fault_name(fault_name.as_str()) {
-        Ok(fault) => Ok(Json(fault)),
+        Ok(fault) => {
+            info!("Fault {} fetched from the store", fault_name);
+            Ok(Json(fault))
+        }
         Err(err) => {
-            error!("error fetching fault {}: {}", fault_name, err);
+            error!("Error fetching fault {}: {}", fault_name, err);
             Err(ServerErrorResponse::new(err.code, err.message))
         }
     }
@@ -95,14 +101,16 @@ pub fn get_fault(
 // On failure, returns the error response with 500 HTTP status code.
 #[get("/faults", format = "json")]
 pub fn get_all_faults(fault_store: State<DB>) -> Result<Json<Vec<Fault>>, ServerErrorResponse> {
-    debug!("get all faults");
-    let fault_store = fault_store.read().unwrap();
+    info!("Get all faults");
+    let fault_store = fault_store
+        .read()
+        .map_err(|err| ServerErrorResponse::new(LOCK_ERROR_CODE.to_string(), err.to_string()))?;
 
     let faults = fault_store.get_all_faults();
 
     match faults {
         Err(err) => {
-            error!("error fetching all faults: {}", err);
+            error!("Error fetching all faults: {}", err);
             Err(ServerErrorResponse::new(err.code, err.message))
         }
 
@@ -127,9 +135,11 @@ pub fn delete_fault(
     fault_name: String,
     fault_store: State<DB>,
 ) -> Result<Status, ServerErrorResponse> {
-    debug!("delete fault: {}", fault_name);
+    info!("Delete fault: {}", fault_name);
 
-    let fault_store = fault_store.write().unwrap();
+    let fault_store = fault_store
+        .write()
+        .map_err(|err| ServerErrorResponse::new(LOCK_ERROR_CODE.to_string(), err.to_string()))?;
 
     match fault_store.delete_fault(fault_name.as_str()) {
         Ok(_) => {
@@ -137,7 +147,7 @@ pub fn delete_fault(
             Ok(Status::NoContent)
         }
         Err(err) => {
-            error!("error deleting fault {}: {}", fault_name, err);
+            error!("Error deleting fault {}: {}", fault_name, err);
             Err(ServerErrorResponse::new(err.code, err.message))
         }
     }
@@ -149,24 +159,30 @@ pub fn delete_fault(
 // On failure, returns the error response with 500 HTTP status code.
 #[delete("/faults")]
 pub fn delete_all_faults(fault_store: State<DB>) -> Result<Status, ServerErrorResponse> {
-    debug!("delete all faults");
+    debug!("Delete all faults");
 
-    let fault_store = fault_store.write().unwrap();
-    let faults = fault_store.get_all_faults().unwrap();
+    let fault_store = fault_store
+        .write()
+        .map_err(|err| ServerErrorResponse::new(LOCK_ERROR_CODE.to_string(), err.to_string()))?;
+
+    let faults = fault_store.get_all_faults().map_err(|err| {
+        error!("Error fetching all faults: {}", err);
+        ServerErrorResponse::new(err.code, err.message)
+    })?;
 
     for fault in faults {
         match fault_store.delete_fault(fault.name.as_str()) {
             Ok(_) => {
-                info!("deleted fault: {}", fault.name);
+                info!("Deleted fault: {}", fault.name);
             }
             Err(err) => {
-                error!("error deleting fault {}: {}", fault.name, err);
+                error!("Error deleting fault {}: {}", fault.name, err);
                 return Err(ServerErrorResponse::new(err.code, err.message));
             }
         }
     }
 
-    debug!("Deleted all faults");
+    debug!("Deleted all faults from the store");
     Ok(Status::NoContent)
 }
 

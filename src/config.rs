@@ -1,11 +1,9 @@
 #[derive(Deserialize, Debug)]
 pub struct Config {
-    #[serde(default = "default_proxy_address")]
-    pub proxy_address: String,
-    #[serde(default = "default_redis_address")]
+    #[serde(default = "default_proxy_port")]
+    pub proxy_port: u16,
     pub redis_address: String,
-    #[serde(default = "default_tls_value")]
-    pub is_tls_on: bool,
+    pub is_redis_tls_conn: bool,
 }
 
 pub fn get_config() -> Result<Config, envy::Error> {
@@ -15,14 +13,6 @@ pub fn get_config() -> Result<Config, envy::Error> {
     }
 }
 
-fn default_proxy_address() -> String {
-    String::from("0.0.0.0:6350")
-}
-
-fn default_tls_value() -> bool {
-    false
-}
-
-fn default_redis_address() -> String {
-    String::from("127.0.0.1:6379")
+fn default_proxy_port() -> u16 {
+    6350
 }
