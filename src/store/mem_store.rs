@@ -1,6 +1,7 @@
 use crate::store::fault_store::{Fault, FaultStore, StoreError, DB};
 use log::{debug, error};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 /// MemStore is an in-memory store implementation of FaultStore
 #[derive(Debug, Clone)]
@@ -83,16 +84,12 @@ mod tests {
     use crate::store::mem_store;
     use chrono::{Duration, Utc};
 
-    #[test]
-    fn test_store() {
+    #[tokio::test]
+    async fn test_store() {
         let mem_store = mem_store::MemStore::new_db();
 
         let fault = get_mock_fault();
-        match mem_store
-            .write()
-            .unwrap()
-            .store(fault.name.as_str(), &fault)
-        {
+        match mem_store.write().await.store(fault.name.as_str(), &fault) {
             Ok(val) => {
                 assert_eq!(true, val);
             }
@@ -102,16 +99,12 @@ mod tests {
         };
     }
 
-    #[test]
-    fn test_duplicate_store() {
+    #[tokio::test]
+    async fn test_duplicate_store() {
         let mem_store = mem_store::MemStore::new_db();
 
         let mut fault = get_mock_fault();
-        match mem_store
-            .write()
-            .unwrap()
-            .store(fault.name.as_str(), &fault)
-        {
+        match mem_store.write().await.store(fault.name.as_str(), &fault) {
             Ok(val) => {
                 assert_eq!(true, val);
             }
@@ -122,11 +115,7 @@ mod tests {
 
         fault.command = "GET".to_string();
 
-        match mem_store
-            .write()
-            .unwrap()
-            .store(fault.name.as_str(), &fault)
-        {
+        match mem_store.write().await.store(fault.name.as_str(), &fault) {
             Ok(val) => {
                 assert_eq!(true, val);
             }
@@ -137,7 +126,7 @@ mod tests {
 
         match mem_store
             .read()
-            .unwrap()
+            .await
             .get_by_fault_name(fault.name.as_str())
         {
             Ok(fault) => {
@@ -149,16 +138,12 @@ mod tests {
         };
     }
 
-    #[test]
-    fn test_get_fault_by_name() {
+    #[tokio::test]
+    async fn test_get_fault_by_name() {
         let mem_store = mem_store::MemStore::new_db();
 
         let fault = get_mock_fault();
-        match mem_store
-            .write()
-            .unwrap()
-            .store(fault.name.as_str(), &fault)
-        {
+        match mem_store.write().await.store(fault.name.as_str(), &fault) {
             Ok(_) => {}
             Err(e) => {
                 panic!("store fault test failed {}", e);
@@ -167,7 +152,7 @@ mod tests {
 
         match mem_store
             .read()
-            .unwrap()
+            .await
             .get_by_fault_name(fault.name.as_str())
         {
             Ok(fault) => {
@@ -179,8 +164,8 @@ mod tests {
         };
     }
 
-    #[test]
-    fn test_get_all_faults() {
+    #[tokio::test]
+    async fn test_get_all_faults() {
         let mem_store = mem_store::MemStore::new_db();
 
         let mock_faults = vec![
@@ -207,7 +192,7 @@ mod tests {
         for mock_fault in &mock_faults {
             match mem_store
                 .write()
-                .unwrap()
+                .await
                 .store(mock_fault.name.as_str(), &mock_fault)
             {
                 Ok(_) => {}
@@ -217,7 +202,7 @@ mod tests {
             };
         }
 
-        match mem_store.read().unwrap().get_all_faults() {
+        match mem_store.read().await.get_all_faults() {
             Ok(faults) => {
                 let n = mock_faults.len();
                 assert_eq!(faults.len(), n);
@@ -235,23 +220,19 @@ mod tests {
         };
     }
 
-    #[test]
-    fn test_delete_fault() {
+    #[tokio::test]
+    async fn test_delete_fault() {
         let mem_store = mem_store::MemStore::new_db();
 
         let fault = get_mock_fault();
-        match mem_store
-            .write()
-            .unwrap()
-            .store(fault.name.as_str(), &fault)
-        {
+        match mem_store.write().await.store(fault.name.as_str(), &fault) {
             Ok(_) => {}
             Err(e) => {
                 panic!("store fault test failed {}", e);
             }
         }
 
-        match mem_store.write().unwrap().delete_fault(fault.name.as_str()) {
+        match mem_store.write().await.delete_fault(fault.name.as_str()) {
             Ok(is_deleted) => {
                 assert_eq!(is_deleted, true);
             }
@@ -261,11 +242,11 @@ mod tests {
         };
     }
 
-    #[test]
-    fn test_delete_invalid_fault() {
+    #[tokio::test]
+    async fn test_delete_invalid_fault() {
         let mem_store = mem_store::MemStore::new_db();
 
-        match mem_store.write().unwrap().delete_fault("invalid_fault") {
+        match mem_store.write().await.delete_fault("invalid_fault") {
             Ok(is_deleted) => {
                 assert_eq!(is_deleted, false);
             }

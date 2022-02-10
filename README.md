@@ -37,10 +37,10 @@ make docker-run
 
 ### Environment variables
 
-1. `PROXY_PORT` is the proxy listener port through which the redis requests are proxied to the origin Redis server. 
+1. `PROXY_PORT` is the proxy listener port through which the redis requests are proxied to the origin Redis server. The default port is `6350`.
 2. `REDIS_ADDRESS` is the address of the origin Redis server.
 3. `IS_REDIS_TLS_CONN` is the boolean value that says whether to establish a TLS connection to the origin Redis server from `red-monkey`.
-4. The HTTP fault configuration server address and port are configured in the `Rocket.toml` file.
+4. `FAULT_CONFIG_SERVER_PORT` is the port at which the fault configuration HTTP server listens. The default port is `8000`.
 
 ### Fault configuration
 
@@ -48,7 +48,6 @@ make docker-run
 
 - The blast radius can be controlled using the `command` field. e.g. If the `GET` value is set in the `command` field, the fault will be applied only to the Redis `GET` command requests. If a fault is desired to be applied to all the Redis commands, set `*` in the `command` field. 
 - The unit of the `duration` field is millisecond.  
-- When one or more faults conflicts with each other, red-monkey will apply the recently created fault.
 
 **An example delay fault**
 

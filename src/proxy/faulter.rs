@@ -1,9 +1,9 @@
 use crate::proxy::resp_util;
-use crate::store::fault_store::{Fault, FaultStore, DB, DELAY_FAULT, ERROR_FAULT};
+use crate::store::fault_store::{Fault, DB, DELAY_FAULT, ERROR_FAULT};
 use log::{debug, error, info};
 use std::str;
-use std::sync::{Arc, RwLock};
-use std::{thread, time};
+use std::time;
+use tokio::time::sleep;
 
 #[derive(Clone)]
 pub struct Faulter {
@@ -17,11 +17,11 @@ pub enum FaulterValue {
 }
 
 impl Faulter {
-    pub fn new(fault_store: Arc<RwLock<Box<dyn FaultStore + Sync + Send>>>) -> Self {
+    pub fn new(fault_store: DB) -> Self {
         Faulter { fault_store }
     }
 
-    pub fn check_for_fault(&self, req_body: &str) -> Result<FaulterValue, anyhow::Error> {
+    pub async fn check_for_fault(&self, req_body: &str) -> Result<FaulterValue, anyhow::Error> {
         let redis_command: String;
         let result = resp_util::decode(req_body);
 
@@ -43,10 +43,7 @@ impl Faulter {
             }
         };
 
-        let fault_store = match self.fault_store.read() {
-            Ok(fault_store) => fault_store,
-            Err(err) => anyhow::bail!(err.to_string()),
-        };
+        let fault_store = self.fault_store.read().await;
 
         let fault_config = fault_store.get_by_redis_cmd(redis_command.as_str());
 
@@ -60,39 +57,39 @@ impl Faulter {
         match fault.fault_type.as_str() {
             DELAY_FAULT => {
                 info!("applying delay fault: {:?}", fault);
-                self.apply_delay_fault(fault.duration);
+                apply_delay_fault(fault.duration).await;
                 Ok(FaulterValue::Null)
             }
 
             ERROR_FAULT => {
                 info!("applying error fault: {:?}", fault);
-                self.apply_error_fault(fault)
+                apply_error_fault(fault)
             }
 
             _ => Err(FaulterErrors::UnsupportedFaultTypeError.into()),
         }
     }
+}
 
-    pub fn apply_delay_fault(&self, sleep_duration: Option<u64>) {
-        if let Some(sleep_duration) = sleep_duration {
-            info!("Sleeping for {:?} seconds", sleep_duration);
+pub async fn apply_delay_fault(sleep_duration: Option<u64>) {
+    if let Some(sleep_duration) = sleep_duration {
+        let sleep_duration = time::Duration::from_millis(sleep_duration);
 
-            let sleep_duration = time::Duration::from_millis(sleep_duration);
-            thread::sleep(sleep_duration);
+        info!("Sleeping for {:?} seconds", sleep_duration);
+        sleep(sleep_duration).await;
 
-            debug!("Slept {:?} seconds", sleep_duration);
-        };
-    }
+        debug!("Slept {:?} seconds", sleep_duration);
+    };
+}
 
-    pub fn apply_error_fault(&self, fault: Fault) -> Result<FaulterValue, anyhow::Error> {
-        let encoded_err_msg = resp_util::encode_error_message(
-            fault
-                .error_msg
-                .ok_or_else(|| Box::new(FaulterErrors::EncodeErrMsgError))?,
-        )?;
+pub fn apply_error_fault(fault: Fault) -> Result<FaulterValue, anyhow::Error> {
+    let encoded_err_msg = resp_util::encode_error_message(
+        fault
+            .error_msg
+            .ok_or_else(|| Box::new(FaulterErrors::EncodeErrMsgError))?,
+    )?;
 
-        Ok(FaulterValue::Value(encoded_err_msg))
-    }
+    Ok(FaulterValue::Value(encoded_err_msg))
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -111,7 +108,7 @@ mod tests {
     use chrono::{Duration, Utc};
     use std::time::Instant;
 
-    fn get_mock_fault_store() -> DB {
+    async fn get_mock_fault_store() -> DB {
         let mock_faults = vec![
             Fault {
                 name: "delay 1 second".to_string(),
@@ -138,7 +135,7 @@ mod tests {
         for fault in mock_faults {
             fault_store
                 .write()
-                .unwrap()
+                .await
                 .store(fault.name.as_str(), &fault)
                 .unwrap();
         }
@@ -146,15 +143,18 @@ mod tests {
         fault_store
     }
 
-    #[test]
-    fn test_error_fault() {
-        let fault_store = get_mock_fault_store();
+    #[tokio::test]
+    async fn test_error_fault() {
+        let fault_store = get_mock_fault_store().await;
         let faulter = Faulter::new(fault_store);
 
-        let res = faulter.check_for_fault("*3\r\n$3\r\nset\r\n$4\r\nkey1\r\n$8\r\nvalue100\r\n");
-        assert_eq!(res.is_ok(), true);
+        let res = faulter
+            .check_for_fault("*3\r\n$3\r\nset\r\n$4\r\nkey1\r\n$8\r\nvalue100\r\n")
+            .await;
 
+        assert_eq!(res.is_ok(), true);
         let err_val = res.unwrap();
+
         match err_val {
             FaulterValue::Value(err_response) => {
                 assert_eq!(str::from_utf8(&err_response).unwrap(), "-SET ERROR\r\n");
@@ -165,13 +165,15 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_delay_fault() {
-        let fault_store = get_mock_fault_store();
+    #[tokio::test]
+    async fn test_delay_fault() {
+        let fault_store = get_mock_fault_store().await;
         let faulter = Faulter::new(fault_store);
 
         let start = Instant::now();
-        let res = faulter.check_for_fault("*2\r\n$3\r\nget\r\n$4\r\nkey1\r\n");
+        let res = faulter
+            .check_for_fault("*2\r\n$3\r\nget\r\n$4\r\nkey1\r\n")
+            .await;
         let duration = start.elapsed();
         println!("elapsed duration is: {:?}", duration.as_secs());
 

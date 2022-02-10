@@ -1,4 +1,4 @@
-#![feature(proc_macro_hygiene, decl_macro)]
+#![feature(proc_macro_hygiene, decl_macro, async_closure)]
 
 use env_logger::Env;
 use log::{debug, error, info};
@@ -18,6 +18,7 @@ fn init_logger() {
     let env = Env::default()
         .filter_or("LOG_LEVEL", "debug")
         .write_style_or("LOG_STYLE", "always");
+
     env_logger::init_from_env(env);
 }
 
@@ -35,11 +36,12 @@ async fn main() -> Result<(), anyhow::Error> {
     )
     .expect("Error configuring proxy");
 
+    let fault_config_server_port = config.fault_config_server_port;
     let fault_config_server_future = tokio::spawn(async move {
         info!("Starting fault config server");
-        fault_config_server::routes::run(fault_store)
+        fault_config_server::server::run(fault_config_server_port, fault_store)
             .await
-            .expect("Failed to start the fault configuration server");
+            .expect("Failed to run fault configuration server");
     });
 
     let proxy_listener_addr =

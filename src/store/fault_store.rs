@@ -1,12 +1,11 @@
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::string::ToString;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 pub type DB = Arc<RwLock<Box<dyn FaultStore + Send + Sync>>>;
-
-pub const STORE_ERROR_CODE: &str = "store_error";
-pub const LOCK_ERROR_CODE: &str = "lock_error";
 
 pub const DELAY_FAULT: &str = "delay";
 pub const ERROR_FAULT: &str = "error";
@@ -107,14 +106,12 @@ impl Clone for Box<dyn FaultStore> {
 /// StoreError is a representation of any data store related errors.
 #[derive(Debug)]
 pub struct StoreError {
-    pub code: String,
     pub message: String,
 }
 
 impl StoreError {
     pub fn new(msg: &str) -> Self {
         StoreError {
-            code: STORE_ERROR_CODE.to_string(),
             message: msg.to_string(),
         }
     }

@@ -1,71 +1,54 @@
-use crate::store::fault_store::{Fault, DB, LOCK_ERROR_CODE};
+use crate::store::fault_store::{Fault, DB};
 use chrono::Utc;
 use log::{debug, error, info};
-use rocket;
-use rocket::http::{ContentType, Status};
-use rocket::request::Request;
-use rocket::response::{self, Responder, Response};
-use rocket::State;
-use rocket::{delete, get, post};
-use rocket_contrib::json::Json;
-use std::io::Cursor;
 
-// ServerErrorResponse represents the response payload for server error (Internal Server Error)
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ServerErrorResponse {
-    pub error_code: String,
-    pub error_msg: String,
-}
-
-impl ServerErrorResponse {
-    fn new(error_code: String, error_msg: String) -> Self {
-        ServerErrorResponse {
-            error_code,
-            error_msg,
-        }
-    }
-
-    fn to_vec(&self) -> Vec<u8> {
-        serde_json::to_vec(self).unwrap()
-    }
-}
-
-impl<'a> Responder<'a> for ServerErrorResponse {
-    fn respond_to(self, _: &Request) -> response::Result<'a> {
-        Response::build()
-            .header(ContentType::JSON)
-            .status(Status::InternalServerError)
-            .sized_body(Cursor::new(self.to_vec()))
-            .ok()
-    }
-}
+use actix_web::{http::StatusCode, HttpResponseBuilder, ResponseError};
+use actix_web::{web, HttpRequest, HttpResponse};
 
 // store_fault is the handler of POST /fault endpoint.
 // On success, returns the response with Created (201) HTTP status.
 // On failure, returns the response with Internal Server Error (500) HTTP status.
-#[post("/fault", format = "json", data = "<fault>")]
-pub fn store_fault(
-    fault: Json<Fault>,
-    fault_store: State<DB>,
-) -> Result<Status, ServerErrorResponse> {
+pub async fn store_fault(
+    fault: web::Json<Fault>,
+    fault_store: web::Data<DB>,
+) -> Result<HttpResponseBuilder, ServerErrorResponse> {
     info!("Create fault: fault name: {:?}", fault.name);
-
     let mut fault = fault.clone();
     fault.last_modified = Some(Utc::now());
 
-    let fault_store = fault_store
-        .write()
-        .map_err(|err| ServerErrorResponse::new(LOCK_ERROR_CODE.to_string(), err.to_string()))?;
+    let faults = fault_store
+        .read()
+        .await
+        .get_all_faults()
+        .map_err(|err| ServerErrorResponse {
+            status_code: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+            message: err.message,
+        })?;
 
-    match fault_store.store(&fault.name, &fault) {
+    for f in faults {
+        if f.command == fault.command {
+            return Err(ServerErrorResponse::new(
+                StatusCode::CONFLICT,
+                format!(
+                    "There already exists a fault for the same {} command",
+                    fault.command
+                ),
+            ));
+        }
+    }
+
+    match fault_store.write().await.store(&fault.name, &fault) {
         Ok(_) => {
-            info!("Fault {} is created in the store", fault.name);
-            Ok(Status::Created)
+            info!("Fault {} created in the store", fault.name);
+            Ok(HttpResponse::Created())
         }
 
         Err(err) => {
             error!("Error storing fault {} in the store: {}", fault.name, err);
-            Err(ServerErrorResponse::new(err.code, err.message))
+            Err(ServerErrorResponse::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                err.message,
+            ))
         }
     }
 }
@@ -73,25 +56,31 @@ pub fn store_fault(
 // get_fault is the handler of GET /fault/<fault_name> endpoint.
 // On success, returns the fault config for the given fault name <fault_name> with 200 HTTP status.
 // On failure, returns the error response with 500 HTTP status code.
-#[get("/fault/<fault_name>", format = "json")]
-pub fn get_fault(
-    fault_name: String,
-    fault_store: State<DB>,
-) -> Result<Json<Fault>, ServerErrorResponse> {
-    info!("Get fault by name: {:?}", fault_name);
+pub async fn get_fault(
+    request: HttpRequest,
+    fault_store: web::Data<DB>,
+) -> Result<HttpResponse, ServerErrorResponse> {
+    let fault_name = request.match_info().get("fault_name").ok_or_else(|| {
+        ServerErrorResponse::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Error fetching fault name from the request path".to_string(),
+        )
+    })?;
+    info!("Fetch fault by name: {:?}", fault_name);
 
-    let fault_store = fault_store
-        .read()
-        .map_err(|err| ServerErrorResponse::new(LOCK_ERROR_CODE.to_string(), err.to_string()))?;
-
-    match fault_store.get_by_fault_name(fault_name.as_str()) {
+    match fault_store.read().await.get_by_fault_name(fault_name) {
         Ok(fault) => {
             info!("Fault {} fetched from the store", fault_name);
-            Ok(Json(fault))
+            Ok(HttpResponse::Ok()
+                .content_type("application/json")
+                .json(fault))
         }
         Err(err) => {
             error!("Error fetching fault {}: {}", fault_name, err);
-            Err(ServerErrorResponse::new(err.code, err.message))
+            Err(ServerErrorResponse::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                err.to_string(),
+            ))
         }
     }
 }
@@ -99,21 +88,13 @@ pub fn get_fault(
 // get_all_faults is the handler of GET /faults endpoint.
 // On success, returns all the fault configs with 200 HTTP status code.
 // On failure, returns the error response with 500 HTTP status code.
-#[get("/faults", format = "json")]
-pub fn get_all_faults(fault_store: State<DB>) -> Result<Json<Vec<Fault>>, ServerErrorResponse> {
-    info!("Get all faults");
-    let fault_store = fault_store
-        .read()
-        .map_err(|err| ServerErrorResponse::new(LOCK_ERROR_CODE.to_string(), err.to_string()))?;
-
-    let faults = fault_store.get_all_faults();
+pub async fn get_all_faults(
+    fault_store: web::Data<DB>,
+) -> Result<HttpResponse, ServerErrorResponse> {
+    info!("Fetch all faults");
+    let faults = fault_store.read().await.get_all_faults();
 
     match faults {
-        Err(err) => {
-            error!("Error fetching all faults: {}", err);
-            Err(ServerErrorResponse::new(err.code, err.message))
-        }
-
         Ok(mut faults) => {
             faults.sort_by(|a, b| {
                 b.last_modified
@@ -121,7 +102,17 @@ pub fn get_all_faults(fault_store: State<DB>) -> Result<Json<Vec<Fault>>, Server
                     .timestamp()
                     .cmp(&a.last_modified.unwrap().timestamp())
             });
-            Ok(Json(faults))
+
+            Ok(HttpResponse::Ok()
+                .content_type("application/json")
+                .json(faults))
+        }
+        Err(err) => {
+            error!("Error fetching all faults: {}", err);
+            Err(ServerErrorResponse::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                err.message,
+            ))
         }
     }
 }
@@ -130,25 +121,29 @@ pub fn get_all_faults(fault_store: State<DB>) -> Result<Json<Vec<Fault>>, Server
 // DELETE /fault/<fault_name> endpoint is idempotent.
 // On successful delete, it returns 204 No Content HTTP status.
 // On failure, returns the error response with 500 HTTP status code.
-#[delete("/fault/<fault_name>")]
-pub fn delete_fault(
-    fault_name: String,
-    fault_store: State<DB>,
-) -> Result<Status, ServerErrorResponse> {
+pub async fn delete_fault(
+    request: HttpRequest,
+    fault_store: web::Data<DB>,
+) -> Result<HttpResponseBuilder, ServerErrorResponse> {
+    let fault_name = request.match_info().get("fault_name").ok_or_else(|| {
+        ServerErrorResponse::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Error fetching fault name from the request path".to_string(),
+        )
+    })?;
     info!("Delete fault: {}", fault_name);
 
-    let fault_store = fault_store
-        .write()
-        .map_err(|err| ServerErrorResponse::new(LOCK_ERROR_CODE.to_string(), err.to_string()))?;
-
-    match fault_store.delete_fault(fault_name.as_str()) {
+    match fault_store.write().await.delete_fault(fault_name) {
         Ok(_) => {
             debug!("Deleted fault: {:?}", fault_name);
-            Ok(Status::NoContent)
+            Ok(HttpResponse::NoContent())
         }
         Err(err) => {
             error!("Error deleting fault {}: {}", fault_name, err);
-            Err(ServerErrorResponse::new(err.code, err.message))
+            Err(ServerErrorResponse::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                err.message,
+            ))
         }
     }
 }
@@ -157,17 +152,15 @@ pub fn delete_fault(
 // DELETE /faults endpoint is idempotent.
 // On successful delete, it returns 204 No Content HTTP status.
 // On failure, returns the error response with 500 HTTP status code.
-#[delete("/faults")]
-pub fn delete_all_faults(fault_store: State<DB>) -> Result<Status, ServerErrorResponse> {
+pub async fn delete_all_faults(
+    fault_store: web::Data<DB>,
+) -> Result<HttpResponseBuilder, ServerErrorResponse> {
     debug!("Delete all faults");
 
-    let fault_store = fault_store
-        .write()
-        .map_err(|err| ServerErrorResponse::new(LOCK_ERROR_CODE.to_string(), err.to_string()))?;
-
+    let fault_store = fault_store.write().await;
     let faults = fault_store.get_all_faults().map_err(|err| {
         error!("Error fetching all faults: {}", err);
-        ServerErrorResponse::new(err.code, err.message)
+        ServerErrorResponse::new(StatusCode::INTERNAL_SERVER_ERROR, err.message)
     })?;
 
     for fault in faults {
@@ -177,148 +170,213 @@ pub fn delete_all_faults(fault_store: State<DB>) -> Result<Status, ServerErrorRe
             }
             Err(err) => {
                 error!("Error deleting fault {}: {}", fault.name, err);
-                return Err(ServerErrorResponse::new(err.code, err.message));
+                return Err(ServerErrorResponse::new(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    err.message,
+                ));
             }
         }
     }
 
     debug!("Deleted all faults from the store");
-    Ok(Status::NoContent)
+    Ok(HttpResponse::NoContent())
+}
+
+#[derive(serde::Serialize)]
+pub struct ServerErrorResponse {
+    status_code: u16,
+    message: String,
+}
+
+impl ServerErrorResponse {
+    fn new(status_code: StatusCode, message: String) -> Self {
+        Self {
+            status_code: status_code.as_u16(),
+            message,
+        }
+    }
+}
+
+impl std::fmt::Debug for ServerErrorResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "error: {}", self.message)
+    }
+}
+
+impl std::fmt::Display for ServerErrorResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "error: {}", self.message)
+    }
+}
+
+impl ResponseError for ServerErrorResponse {
+    fn status_code(&self) -> StatusCode {
+        StatusCode::INTERNAL_SERVER_ERROR
+    }
+
+    fn error_response(&self) -> HttpResponse {
+        HttpResponseBuilder::new(StatusCode::from_u16(self.status_code).unwrap())
+            .content_type("application/json")
+            .json(self)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::rocket;
     use super::*;
-    use rocket::http::{ContentType, Status};
-    use rocket::local::Client;
-    use rocket::routes;
+    use actix_web::{http::StatusCode, test, web, web::Data, App};
 
-    fn setup_fault_config_server() -> rocket::Rocket {
+    #[tokio::test]
+    async fn test_store_fault() {
         let fault_store = crate::store::mem_store::MemStore::new_db();
-        rocket::ignite()
-            .mount(
-                "/",
-                routes![
-                    store_fault,
-                    get_fault,
-                    get_all_faults,
-                    delete_fault,
-                    delete_all_faults
-                ],
-            )
-            .manage(fault_store)
+        let mut app = test::init_service(
+            App::new()
+                .route("/fault", web::post().to(store_fault))
+                .app_data(Data::new(fault_store.clone())),
+        )
+        .await;
+
+        let req = test::TestRequest::post()
+            .uri("/fault")
+            .set_json(get_mock_fault())
+            .to_request();
+        let resp = test::call_service(&mut app, req).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
     }
 
-    fn mock_store_util(client: &Client) {
-        let response = client
-            .post("/fault")
-            .header(ContentType::JSON)
-            .body(
-                r#"{
-                "name": "get_custom_err",
-                "description": "GET custom error",
-                "fault_type": "error",
-                "error_msg": "KEY not found",
-                "percentage": 100,
-                "command": "GET"
-            }
-            "#,
-            )
-            .dispatch();
+    #[tokio::test]
+    async fn test_conflict_store() {
+        let fault_store = crate::store::mem_store::MemStore::new_db();
+        let mut app = test::init_service(
+            App::new()
+                .route("/fault", web::post().to(store_fault))
+                .app_data(Data::new(fault_store.clone())),
+        )
+        .await;
 
-        assert_eq!(response.status(), Status::Created);
+        let mut req = test::TestRequest::post()
+            .uri("/fault")
+            .set_json(get_mock_fault())
+            .to_request();
+        let mut resp = test::call_service(&mut app, req).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        req = test::TestRequest::post()
+            .uri("/fault")
+            .set_json(get_mock_fault())
+            .to_request();
+        resp = test::call_service(&mut app, req).await;
+        assert_eq!(resp.status(), StatusCode::CONFLICT);
     }
 
-    #[test]
-    fn fault_config_server() {
-        let client =
-            Client::new(setup_fault_config_server()).expect("valid rocket client instance");
-        mock_store_util(&client);
-    }
+    #[tokio::test]
+    async fn test_get_all_faults() {
+        let fault_store = crate::store::mem_store::MemStore::new_db();
+        let fault = get_mock_fault();
+        fault_store
+            .write()
+            .await
+            .store(&fault.name, &fault)
+            .unwrap();
 
-    #[test]
-    fn get_all_faults() {
-        let client =
-            Client::new(setup_fault_config_server()).expect("valid rocket client instance");
-        mock_store_util(&client);
+        let mut app = test::init_service(
+            App::new()
+                .route("/faults", web::get().to(get_all_faults))
+                .app_data(Data::new(fault_store)),
+        )
+        .await;
 
-        let mut response = client.get("/faults").dispatch();
-        assert_eq!(response.status(), Status::Ok);
-
-        let response_string = response.body_string().unwrap();
-        let faults: Vec<Fault> = serde_json::from_str(response_string.as_str()).unwrap();
-
-        let expected_fault = Fault {
-            name: "get_custom_err".to_string(),
-            command: "GET".to_string(),
-            description: Some("GET custom error".to_string()),
-            fault_type: "error".to_string(),
-            duration: None,
-            error_msg: Some("KEY not found".to_string()),
-            last_modified: faults[0].last_modified,
-        };
+        let req = test::TestRequest::get().uri("/faults").to_request();
+        let resp = test::call_service(&mut app, req).await;
+        let result = test::read_body(resp).await;
+        let faults: Vec<Fault> = serde_json::from_slice(&result).unwrap();
 
         assert_eq!(faults.len(), 1);
-        assert_eq!(faults[0], expected_fault);
+        assert_eq!(faults[0], get_mock_fault());
     }
 
-    #[test]
-    fn get_fault() {
-        let client =
-            Client::new(setup_fault_config_server()).expect("valid rocket client instance");
-        mock_store_util(&client);
+    #[tokio::test]
+    async fn test_get_fault() {
+        let fault_store = crate::store::mem_store::MemStore::new_db();
+        let fault = get_mock_fault();
+        fault_store
+            .write()
+            .await
+            .store(&fault.name, &fault)
+            .unwrap();
 
-        let mut response = client.get("/fault/get_custom_err").dispatch();
-        assert_eq!(response.status(), Status::Ok);
+        let mut app = test::init_service(
+            App::new()
+                .route("/fault/{fault_name}", web::get().to(get_fault))
+                .app_data(Data::new(fault_store)),
+        )
+        .await;
 
-        let response_string = response.body_string().unwrap();
-        let fault: Fault = serde_json::from_str(response_string.as_str()).unwrap();
+        let req = test::TestRequest::get()
+            .uri(format!("/fault/{}", fault.name).as_str())
+            .to_request();
+        let resp = test::call_service(&mut app, req).await;
+        let result = test::read_body(resp).await;
 
-        let expected_fault = Fault {
+        let fault: Fault = serde_json::from_slice(&result).unwrap();
+        assert_eq!(fault, get_mock_fault());
+    }
+
+    #[tokio::test]
+    async fn test_delete_fault() {
+        let fault_store = crate::store::mem_store::MemStore::new_db();
+        let fault = get_mock_fault();
+        fault_store
+            .write()
+            .await
+            .store(&fault.name, &fault)
+            .unwrap();
+
+        let mut app = test::init_service(
+            App::new()
+                .route("/fault/{fault_name}", web::delete().to(delete_fault))
+                .app_data(Data::new(fault_store)),
+        )
+        .await;
+
+        let req = test::TestRequest::delete()
+            .uri(format!("/fault/{}", fault.name).as_str())
+            .to_request();
+        let resp = test::call_service(&mut app, req).await;
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn test_delete_all_faults() {
+        let fault_store = crate::store::mem_store::MemStore::new_db();
+        let fault = get_mock_fault();
+        fault_store
+            .write()
+            .await
+            .store(&fault.name, &fault)
+            .unwrap();
+
+        let mut app = test::init_service(
+            App::new()
+                .route("/faults", web::delete().to(delete_all_faults))
+                .app_data(Data::new(fault_store)),
+        )
+        .await;
+
+        let req = test::TestRequest::delete().uri("/faults").to_request();
+        let resp = test::call_service(&mut app, req).await;
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    }
+
+    fn get_mock_fault() -> Fault {
+        Fault {
             name: "get_custom_err".to_string(),
-            command: "GET".to_string(),
             description: Some("GET custom error".to_string()),
             fault_type: "error".to_string(),
-            duration: None,
             error_msg: Some("KEY not found".to_string()),
-            last_modified: fault.last_modified,
-        };
-
-        assert_eq!(fault, expected_fault);
-    }
-
-    #[test]
-    fn delete_fault() {
-        let client =
-            Client::new(setup_fault_config_server()).expect("valid rocket client instance");
-        mock_store_util(&client);
-
-        let delete_fault_response = client.delete("/fault/get_custom_err").dispatch();
-        assert_eq!(delete_fault_response.status(), Status::NoContent);
-
-        let mut get_faults_response = client.get("/faults").dispatch();
-        assert_eq!(get_faults_response.status(), Status::Ok);
-
-        let response_string = get_faults_response.body_string().unwrap();
-        let faults: Vec<Fault> = serde_json::from_str(response_string.as_str()).unwrap();
-        assert_eq!(faults.len(), 0);
-    }
-
-    #[test]
-    fn delete_all_faults() {
-        let client =
-            Client::new(setup_fault_config_server()).expect("valid rocket client instance");
-        mock_store_util(&client);
-
-        let delete_all_faults_response = client.delete("/faults").dispatch();
-        assert_eq!(delete_all_faults_response.status(), Status::NoContent);
-
-        let mut get_faults_response = client.get("/faults").dispatch();
-        assert_eq!(get_faults_response.status(), Status::Ok);
-
-        let response_string = get_faults_response.body_string().unwrap();
-        let faults: Vec<Fault> = serde_json::from_str(response_string.as_str()).unwrap();
-        assert_eq!(faults.len(), 0);
+            duration: None,
+            command: "GET".to_string(),
+            last_modified: None,
+        }
     }
 }

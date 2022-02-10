@@ -4,6 +4,8 @@ pub struct Config {
     pub proxy_port: u16,
     pub redis_address: String,
     pub is_redis_tls_conn: bool,
+    #[serde(default = "fault_config_server_port")]
+    pub fault_config_server_port: u16,
 }
 
 pub fn get_config() -> Result<Config, envy::Error> {
@@ -15,4 +17,8 @@ pub fn get_config() -> Result<Config, envy::Error> {
 
 fn default_proxy_port() -> u16 {
     6350
+}
+
+fn fault_config_server_port() -> u16 {
+    8000
 }

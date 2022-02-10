@@ -97,15 +97,15 @@ impl Connection {
         let (mut server_read_stream, mut server_write_stream) = tokio::io::split(stream);
 
         // convert the AsyncRead into a stream of byte buffers
-        let mut client_stream = into_bytes_stream(client_read_stream)
-            .map(|buf| -> Result<Bytes, anyhow::Error> { self.check_fault(buf?) });
+        let mut client_stream =
+            into_bytes_stream(client_read_stream).map(|buf| async { self.check_fault(buf?).await });
 
         let mut fault_err_msg: Option<anyhow::Error> = None;
         let mut req_bytes: Bytes = Bytes::from("");
 
-        if let Some(val) = client_stream.next().await {
-            match val {
-                Ok(val) => req_bytes = val,
+        if let Some(data) = client_stream.next().await {
+            match data.await {
+                Ok(data) => req_bytes = data,
                 Err(err) => fault_err_msg = Some(err),
             }
         };
@@ -147,11 +147,11 @@ impl Connection {
         Ok(())
     }
 
-    fn check_fault(&self, request_payload: Bytes) -> Result<Bytes, anyhow::Error> {
+    async fn check_fault(&self, request_payload: Bytes) -> Result<Bytes, anyhow::Error> {
         let mut fault_err_msg = String::new();
 
         let request_payload_str = std::str::from_utf8(&request_payload)?;
-        let response = self.faulter.check_for_fault(request_payload_str)?;
+        let response = self.faulter.check_for_fault(request_payload_str).await?;
 
         if let FaulterValue::Value(v) = response {
             fault_err_msg = String::from_utf8_lossy(&v).to_string();
