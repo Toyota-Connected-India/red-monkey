@@ -5,6 +5,7 @@ use log::{debug, error, info};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::join;
 use tokio::net::TcpListener;
+use tokio::signal;
 
 #[macro_use]
 extern crate serde_derive;
@@ -29,7 +30,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let fault_store = store::mem_store::MemStore::new_db();
 
-    let proxy = proxy::connection::Connection::new(
+    let conns = proxy::connection::Connection::new(
         config.redis_address.clone(),
         proxy::faulter::Faulter::new(fault_store.clone()),
         config.is_redis_tls_conn,
@@ -53,22 +54,22 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let proxy_future = tokio::spawn(async move {
         loop {
-            let (socket, _addr) = match listener.accept().await {
-                Ok((socket, addr)) => (socket, addr),
-                Err(err) => {
-                    error!("error accepting connection: {}", err);
-                    continue;
-                }
-            };
+            tokio::select! {
+                Ok((socket, _addr)) = listener.accept() => {
+                let conn = conns.clone();
 
-            debug!("handling tcp connection");
-            proxy
-                .clone()
-                .handle_connection(socket)
-                .await
-                .unwrap_or_else(|err| {
-                    error!("error handling connection: {:?}", err);
+                tokio::spawn(async move {
+                    debug!("handling tcp connection");
+                    conn.handle(socket).await.unwrap_or_else(|err| {
+                        error!("error handling connection: {:?}", err);
+                    });
                 });
+                }
+                _ = signal::ctrl_c() => {
+                    info!("shutting down proxy");
+                    return;
+                }
+            }
         }
     });
 

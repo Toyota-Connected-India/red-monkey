@@ -80,10 +80,7 @@ impl Connection {
         Ok(Box::new(tls_stream))
     }
 
-    pub async fn handle_connection(
-        self,
-        mut inbound_stream: TcpStream,
-    ) -> Result<(), anyhow::Error> {
+    pub async fn handle(self, mut inbound_stream: TcpStream) -> Result<(), anyhow::Error> {
         let (client_read_stream, mut client_write_stream) = inbound_stream.split();
 
         let stream = if self.is_tls_conn {
