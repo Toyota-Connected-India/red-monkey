@@ -1,6 +1,8 @@
 #![allow(clippy::enum_variant_names)]
+use anyhow::anyhow;
 use resp::{Decoder, Value};
 use tracing::error;
+use url::Url;
 
 // Decodes the request body into Redis RESP values
 //
@@ -93,6 +95,20 @@ pub fn fetch_redis_command(resp_vals: resp::Value) -> Result<String, anyhow::Err
 pub fn encode_error_message(err_message: String) -> Result<Vec<u8>, anyhow::Error> {
     let err_val = Value::Error(err_message);
     Ok(err_val.encode())
+}
+
+pub fn get_host_name(redis_server_addr: &str) -> Result<String, anyhow::Error> {
+    let mut parsed_redis_url = Url::parse(redis_server_addr)?;
+
+    if parsed_redis_url.host_str() == None {
+        parsed_redis_url = Url::parse(&format!("redis://{}", redis_server_addr))?;
+    }
+
+    let host_name = parsed_redis_url
+        .host_str()
+        .ok_or_else(|| anyhow!("Error fetching the hostname from redis address"))?;
+
+    Ok(host_name.to_string())
 }
 
 #[derive(Debug, thiserror::Error)]

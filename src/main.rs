@@ -39,7 +39,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let fault_store = store::mem_store::MemStore::new_db();
 
-    let conns = proxy::connection::Connection::new(
+    let conn = proxy::connection::Connection::new(
         config.redis_address.clone(),
         proxy::faulter::Faulter::new(fault_store.clone()),
         config.is_redis_tls_conn,
@@ -64,7 +64,7 @@ async fn main() -> Result<(), anyhow::Error> {
         loop {
             tokio::select! {
                 Ok((socket, _addr)) = listener.accept() => {
-                let conn = conns.clone();
+                let conn = conn.clone();
 
                 tokio::spawn(async move {
                     debug!("handling tcp connection");

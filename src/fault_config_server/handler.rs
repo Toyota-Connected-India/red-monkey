@@ -5,9 +5,13 @@ use tracing::{debug, error, info};
 use actix_web::{http::StatusCode, HttpResponseBuilder, ResponseError};
 use actix_web::{web, HttpRequest, HttpResponse};
 
-// store_fault is the handler of POST /fault endpoint.
-// On success, returns the response with Created (201) HTTP status.
-// On failure, returns the response with Internal Server Error (500) HTTP status.
+/// store_fault is the handler of POST /fault endpoint.
+///
+/// 1. When the fault is successfully stored in the fault store, HTTP Created 201 is retuned.
+/// 2. For invalid POST body payload, HTTP Bad request 400 is returned.
+/// 3. When the fault that is posted conflicts with the current state of the fault store, HTTP
+///    Conflict 409 is returned.
+/// 4. When the fault fails to be stored in the fault store, HTTP Internal Server Error 500 is returned.
 #[tracing::instrument(skip(fault_store))]
 pub async fn store_fault(
     fault: web::Json<Fault>,
@@ -54,9 +58,12 @@ pub async fn store_fault(
     }
 }
 
-// get_fault is the handler of GET /fault/<fault_name> endpoint.
-// On success, returns the fault config for the given fault name <fault_name> with 200 HTTP status.
-// On failure, returns the error response with 500 HTTP status code.
+/// get_fault is the handler of GET /fault/<fault_name> endpoint.
+///
+/// 1. On successful fetch, returns the fault configuration of the given fault <fault_name> with
+///    HTTP status OK.
+/// 2. If the given fault name is not available in the fault store, HTTP Bad request 400 is
+///    returned.
 #[tracing::instrument(skip(fault_store, request))]
 pub async fn get_fault(
     request: HttpRequest,
@@ -80,16 +87,18 @@ pub async fn get_fault(
         Err(err) => {
             error!("Error fetching fault {}: {}", fault_name, err);
             Err(ServerErrorResponse::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::BAD_REQUEST,
                 err.to_string(),
             ))
         }
     }
 }
 
-// get_all_faults is the handler of GET /faults endpoint.
-// On success, returns all the fault configs with 200 HTTP status code.
-// On failure, returns the error response with 500 HTTP status code.
+/// get_all_faults is the handler of GET /faults endpoint.
+///
+/// 1. On success fetch, returns all the fault configurations with HTTP status 200.
+/// 2. If unable to fetch the fault configurations from the fault store, HTTP Internal Server Error
+///    is returned.
 #[tracing::instrument(skip(fault_store))]
 pub async fn get_all_faults(
     fault_store: web::Data<DB>,
@@ -120,10 +129,11 @@ pub async fn get_all_faults(
     }
 }
 
-// delete_fault is the handler of DELETE /fault/<fault_name> endpoint.
-// DELETE /fault/<fault_name> endpoint is idempotent.
-// On successful delete, it returns 204 No Content HTTP status.
-// On failure, returns the error response with 500 HTTP status code.
+/// delete_fault is the handler of DELETE /fault/<fault_name> endpoint.
+///
+/// 1. DELETE /fault/<fault_name> endpoint is idempotent.
+/// 2. On successful delete, HTTP No Content 204 status is returned.
+/// 3. On failing to delete the given fault <fault_name>, HTTP Internal Server Error 500 is returned.
 #[tracing::instrument(skip(fault_store, request))]
 pub async fn delete_fault(
     request: HttpRequest,
@@ -152,10 +162,11 @@ pub async fn delete_fault(
     }
 }
 
-// delete_all_faults is the handler for DELETE /faults.
-// DELETE /faults endpoint is idempotent.
-// On successful delete, it returns 204 No Content HTTP status.
-// On failure, returns the error response with 500 HTTP status code.
+/// delete_all_faults is the handler for DELETE /faults.
+///
+/// DELETE /faults endpoint is idempotent.
+/// On successful delete, it returns 204 No Content HTTP status.
+/// On failing to delete all faults, returns HTTP Internal Server Error 500 status.
 #[tracing::instrument(skip(fault_store))]
 pub async fn delete_all_faults(
     fault_store: web::Data<DB>,

@@ -1,4 +1,5 @@
 use crate::proxy::faulter::{Faulter, FaulterValue};
+use crate::proxy::resp_util::get_host_name;
 use anyhow::anyhow;
 use bytes::Bytes;
 use futures::stream::{Stream, StreamExt, TryStreamExt};
@@ -12,7 +13,6 @@ use tokio::{
 use tokio_native_tls::{native_tls::TlsConnector, TlsStream};
 use tokio_util::codec;
 use tracing::{debug, info};
-use url::Url;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -35,6 +35,13 @@ where
 }
 
 impl Connection {
+    /// Creates a new Connection object
+    ///
+    /// # To be improved
+    ///
+    /// 1. Currently, we create a new TCP connection to redis server for each non-fault request.
+    /// But, this could turn out to be a costly op, on large requests traffic. This can be improved
+    /// by TCP connection pooling.
     pub fn new(
         redis_addr: String,
         faulter: Faulter,
@@ -47,11 +54,13 @@ impl Connection {
         })
     }
 
+    /// Creates a new raw TCP stream to the redis server
     async fn new_tcp_stream(&self) -> Result<Box<dyn AsyncReadWrite>, anyhow::Error> {
         let tcp_stream = TcpStream::connect(&self.redis_addr).await?;
         Ok(Box::new(tcp_stream))
     }
 
+    /// Creates a new TLS stream to the redis server
     async fn new_tls_stream(&self) -> Result<Box<dyn AsyncReadWrite>, anyhow::Error> {
         let redis_addr = self
             .redis_addr
@@ -70,13 +79,19 @@ impl Connection {
         let tls_connector = tokio_native_tls::TlsConnector::from(tls_connector);
 
         let redis_host_name = get_host_name(&self.redis_addr.clone())?;
-        info!("redis host name: {}", redis_host_name);
 
         let tls_stream = tls_connector.connect(&redis_host_name, tcp_stream).await?;
 
         Ok(Box::new(tls_stream))
     }
 
+    /// handle is the core of the proxy connection handling. It handles the connection between
+    /// the client and the redis server. When no faults are configured, handle will act as a typical
+    /// proxy; forwards all the requests to the redis server.
+    ///
+    /// Based on the redis endpoint, handle will decided to establish a tcp connection or a tls
+    /// connection over the tcp stream. In the connection pipeline, it checks if the redis command
+    /// request matches with any fault plan. If so, appropriate fault (delay / custom error) will be applied.
     #[tracing::instrument(
     name = "Handling connection", 
         skip(self),
@@ -164,18 +179,4 @@ impl Connection {
 
         Ok(request_payload)
     }
-}
-
-fn get_host_name(redis_server_addr: &str) -> Result<String, anyhow::Error> {
-    let mut parsed_redis_url = Url::parse(redis_server_addr)?;
-
-    if parsed_redis_url.host_str() == None {
-        parsed_redis_url = Url::parse(&format!("redis://{}", redis_server_addr))?;
-    }
-
-    let host_name = parsed_redis_url
-        .host_str()
-        .ok_or_else(|| anyhow!("Error fetching the hostname from redis address"))?;
-
-    Ok(host_name.to_string())
 }
