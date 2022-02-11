@@ -1,21 +1,19 @@
-use anyhow::anyhow;
-use std::borrow::Borrow;
-use tokio_native_tls::{native_tls::TlsConnector, TlsStream};
-use url::Url;
-
 use crate::proxy::faulter::{Faulter, FaulterValue};
-
+use anyhow::anyhow;
 use bytes::Bytes;
 use futures::stream::{Stream, StreamExt, TryStreamExt};
-use log::{debug, info};
-
+use std::borrow::Borrow;
 use std::net::ToSocketAddrs;
 use tokio::{
     io,
     io::{AsyncRead, AsyncWrite, AsyncWriteExt, Result as TResult},
     net::TcpStream,
 };
+use tokio_native_tls::{native_tls::TlsConnector, TlsStream};
 use tokio_util::codec;
+use tracing::{debug, info};
+use url::Url;
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct Connection {
@@ -49,7 +47,6 @@ impl Connection {
         })
     }
 
-    #[allow(dead_code)]
     async fn new_tcp_stream(&self) -> Result<Box<dyn AsyncReadWrite>, anyhow::Error> {
         let tcp_stream = TcpStream::connect(&self.redis_addr).await?;
         Ok(Box::new(tcp_stream))
@@ -80,14 +77,21 @@ impl Connection {
         Ok(Box::new(tls_stream))
     }
 
+    #[tracing::instrument(
+    name = "Handling connection", 
+        skip(self),
+        fields(
+            request_id = %Uuid::new_v4(),
+        )
+    )]
     pub async fn handle(self, mut inbound_stream: TcpStream) -> Result<(), anyhow::Error> {
         let (client_read_stream, mut client_write_stream) = inbound_stream.split();
 
         let stream = if self.is_tls_conn {
-            info!("establishing tls connection");
+            info!("establishing tls connection to {}", self.redis_addr);
             self.new_tls_stream().await?
         } else {
-            info!("establishing tcp connection");
+            info!("establishing tcp connection to {}", self.redis_addr);
             self.new_tcp_stream().await?
         };
 
@@ -98,7 +102,7 @@ impl Connection {
             into_bytes_stream(client_read_stream).map(|buf| async { self.check_fault(buf?).await });
 
         let mut fault_err_msg: Option<anyhow::Error> = None;
-        let mut req_bytes: Bytes = Bytes::from("");
+        let mut req_bytes: Bytes = Bytes::new();
 
         if let Some(data) = client_stream.next().await {
             match data.await {
@@ -129,13 +133,13 @@ impl Connection {
 
         let client_to_server = async {
             io::copy(&mut req_bytes.borrow(), &mut server_write_stream).await?;
-            debug!("request proxied to redis server");
+            info!("request proxied to redis server");
             server_write_stream.shutdown().await
         };
 
         let server_to_client = async {
             io::copy(&mut server_read_stream, &mut client_write_stream).await?;
-            debug!("response sent back to the client");
+            info!("response sent back to the client");
             client_write_stream.shutdown().await
         };
 

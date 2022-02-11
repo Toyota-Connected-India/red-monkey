@@ -1,6 +1,6 @@
 #![allow(clippy::enum_variant_names)]
-use log::{debug, error};
 use resp::{Decoder, Value};
+use tracing::error;
 
 // Decodes the request body into Redis RESP values
 //
@@ -68,7 +68,6 @@ pub fn fetch_redis_command(resp_vals: resp::Value) -> Result<String, anyhow::Err
             if arr.is_empty() {
                 return Err(RespErrors::RespArrEmptyError.into());
             }
-            debug!("value {:?}", arr[0]);
 
             match arr[0].clone() {
                 Value::Bulk(v) => Ok(v),

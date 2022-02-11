@@ -1,9 +1,9 @@
 use crate::proxy::resp_util;
 use crate::store::fault_store::{Fault, DB, DELAY_FAULT, ERROR_FAULT};
-use log::{debug, error, info};
 use std::str;
 use std::time;
 use tokio::time::sleep;
+use tracing::{debug, error, info};
 
 #[derive(Clone)]
 pub struct Faulter {
@@ -71,14 +71,13 @@ impl Faulter {
     }
 }
 
+#[tracing::instrument(name = "Injecting delay fault")]
 pub async fn apply_delay_fault(sleep_duration: Option<u64>) {
     if let Some(sleep_duration) = sleep_duration {
         let sleep_duration = time::Duration::from_millis(sleep_duration);
 
-        info!("Sleeping for {:?} seconds", sleep_duration);
+        info!("Sleeping for {:?}", sleep_duration);
         sleep(sleep_duration).await;
-
-        debug!("Slept {:?} seconds", sleep_duration);
     };
 }
 

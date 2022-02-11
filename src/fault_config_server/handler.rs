@@ -1,6 +1,6 @@
 use crate::store::fault_store::{Fault, DB};
 use chrono::Utc;
-use log::{debug, error, info};
+use tracing::{debug, error, info};
 
 use actix_web::{http::StatusCode, HttpResponseBuilder, ResponseError};
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -8,6 +8,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 // store_fault is the handler of POST /fault endpoint.
 // On success, returns the response with Created (201) HTTP status.
 // On failure, returns the response with Internal Server Error (500) HTTP status.
+#[tracing::instrument(skip(fault_store))]
 pub async fn store_fault(
     fault: web::Json<Fault>,
     fault_store: web::Data<DB>,
@@ -56,6 +57,7 @@ pub async fn store_fault(
 // get_fault is the handler of GET /fault/<fault_name> endpoint.
 // On success, returns the fault config for the given fault name <fault_name> with 200 HTTP status.
 // On failure, returns the error response with 500 HTTP status code.
+#[tracing::instrument(skip(fault_store, request))]
 pub async fn get_fault(
     request: HttpRequest,
     fault_store: web::Data<DB>,
@@ -88,6 +90,7 @@ pub async fn get_fault(
 // get_all_faults is the handler of GET /faults endpoint.
 // On success, returns all the fault configs with 200 HTTP status code.
 // On failure, returns the error response with 500 HTTP status code.
+#[tracing::instrument(skip(fault_store))]
 pub async fn get_all_faults(
     fault_store: web::Data<DB>,
 ) -> Result<HttpResponse, ServerErrorResponse> {
@@ -121,6 +124,7 @@ pub async fn get_all_faults(
 // DELETE /fault/<fault_name> endpoint is idempotent.
 // On successful delete, it returns 204 No Content HTTP status.
 // On failure, returns the error response with 500 HTTP status code.
+#[tracing::instrument(skip(fault_store, request))]
 pub async fn delete_fault(
     request: HttpRequest,
     fault_store: web::Data<DB>,
@@ -152,6 +156,7 @@ pub async fn delete_fault(
 // DELETE /faults endpoint is idempotent.
 // On successful delete, it returns 204 No Content HTTP status.
 // On failure, returns the error response with 500 HTTP status code.
+#[tracing::instrument(skip(fault_store))]
 pub async fn delete_all_faults(
     fault_store: web::Data<DB>,
 ) -> Result<HttpResponseBuilder, ServerErrorResponse> {

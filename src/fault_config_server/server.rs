@@ -4,6 +4,7 @@ use actix_web::web::Data;
 use actix_web::{web, App, HttpServer};
 use std::net::TcpListener;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use tracing::info;
 use tracing_actix_web::TracingLogger;
 
 pub async fn run(port: u16, fault_store: DB) -> Result<(), anyhow::Error> {
@@ -23,6 +24,8 @@ pub async fn run(port: u16, fault_store: DB) -> Result<(), anyhow::Error> {
     .shutdown_timeout(2)
     .listen(listener)?
     .run();
+
+    info!("Fault config server listening on: {}", server_listener_addr);
 
     server.await?;
     Ok(())

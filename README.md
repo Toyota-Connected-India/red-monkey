@@ -41,6 +41,7 @@ make docker-run
 2. `REDIS_ADDRESS` is the address of the origin Redis server.
 3. `IS_REDIS_TLS_CONN` is the boolean value that says whether to establish a TLS connection to the origin Redis server from `red-monkey`.
 4. `FAULT_CONFIG_SERVER_PORT` is the port at which the fault configuration HTTP server listens. The default port is `8000`.
+5. `LOG_LEVEL` represents the log level of red-monkey. The default log level is `info`. 
 
 ### Fault configuration
 

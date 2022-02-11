@@ -1,7 +1,7 @@
 use crate::store::fault_store::{Fault, FaultStore, StoreError, DB};
-use log::{debug, error};
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tracing::{debug, error};
 
 /// MemStore is an in-memory store implementation of FaultStore
 #[derive(Debug, Clone)]
