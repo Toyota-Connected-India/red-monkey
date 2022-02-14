@@ -47,7 +47,8 @@ make docker-run
 
 `red-monkey` runs an HTTP server that exposes API endpoints to configure faults. The fault configuration API schema can be found in the Swagger file [here](docs/swagger-fault-config-server.yaml). 
 
-- The blast radius can be controlled using the `command` field. e.g. If the `GET` value is set in the `command` field, the fault will be applied only to the Redis `GET` command requests. If a fault is desired to be applied to all the Redis commands, set `*` in the `command` field. 
+- The blast radius can be controlled using the `command` field. e.g. If the `GET` value is set in the `command` field, the fault will be applied only to the Redis `GET` command requests.  
+- If a fault is desired to be applied to all the Redis commands, set `*` in the `command` field. The fault plan with the `*` will act as a fallback when no specific fault plans match. For example, when there is a specific fault plan for the `GET` command, it will be chosen over the fault plan with the `*` command for Redis `GET` request. When no specific fault plan matches, the fault plan with the `*` command will be applied.
 - The unit of the `duration` field is millisecond.  
 
 **An example delay fault**

@@ -49,13 +49,24 @@ impl FaultStore for MemStore {
             }
         };
 
+        let mut is_all_faulter: Option<Fault> = None;
+        let mut matched_fault: Option<Fault> = None;
+
         for fault in faults {
+            if fault.command == "*" {
+                is_all_faulter = Some(fault.clone());
+            }
+
             if redis_cmd.to_lowercase() == fault.command.to_lowercase() {
-                return Some(fault);
+                matched_fault = Some(fault);
             }
         }
 
-        None
+        if matched_fault != None {
+            return matched_fault;
+        }
+
+        is_all_faulter
     }
 
     fn get_all_faults(&self) -> Result<Vec<Fault>, StoreError> {

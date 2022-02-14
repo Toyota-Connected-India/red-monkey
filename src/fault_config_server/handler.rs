@@ -1,8 +1,12 @@
-use crate::store::fault_store::{Fault, DB};
+use crate::store::fault_store::{Fault, FaultVariants, DB};
 use chrono::Utc;
+use std::string::ToString;
 use tracing::{debug, error, info};
 
-use actix_web::{http::StatusCode, HttpResponseBuilder, ResponseError};
+use actix_web::{
+    http::{header::ContentType, StatusCode},
+    HttpResponseBuilder, ResponseError,
+};
 use actix_web::{web, HttpRequest, HttpResponse};
 
 /// store_fault is the handler of POST /fault endpoint.
@@ -11,7 +15,8 @@ use actix_web::{web, HttpRequest, HttpResponse};
 /// 2. For invalid POST body payload, HTTP Bad request 400 is returned.
 /// 3. When the fault that is posted conflicts with the current state of the fault store, HTTP
 ///    Conflict 409 is returned.
-/// 4. When the fault fails to be stored in the fault store, HTTP Internal Server Error 500 is returned.
+/// 4. If the fault type is not one of [`delay`, `error`] value, HTTP Bad request would be returned.
+/// 5. When the fault fails to be stored in the fault store, HTTP Internal Server Error 500 is returned.
 #[tracing::instrument(skip(fault_store))]
 pub async fn store_fault(
     fault: web::Json<Fault>,
@@ -29,6 +34,15 @@ pub async fn store_fault(
             status_code: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
             message: err.message,
         })?;
+
+    if fault.fault_type != FaultVariants::Delay.as_str()
+        && fault.fault_type != FaultVariants::Error.as_str()
+    {
+        return Err(ServerErrorResponse {
+            status_code: StatusCode::BAD_REQUEST.as_u16(),
+            message: format!("Error as unsupported fault type: {}", fault.fault_type),
+        });
+    }
 
     for f in faults {
         if f.command == fault.command {
@@ -81,7 +95,7 @@ pub async fn get_fault(
         Ok(fault) => {
             info!("Fault {} fetched from the store", fault_name);
             Ok(HttpResponse::Ok()
-                .content_type("application/json")
+                .content_type(ContentType::json())
                 .json(fault))
         }
         Err(err) => {
@@ -116,7 +130,7 @@ pub async fn get_all_faults(
             });
 
             Ok(HttpResponse::Ok()
-                .content_type("application/json")
+                .content_type(ContentType::json())
                 .json(faults))
         }
         Err(err) => {
@@ -232,7 +246,7 @@ impl ResponseError for ServerErrorResponse {
 
     fn error_response(&self) -> HttpResponse {
         HttpResponseBuilder::new(StatusCode::from_u16(self.status_code).unwrap())
-            .content_type("application/json")
+            .content_type(ContentType::json())
             .json(self)
     }
 }
@@ -258,6 +272,27 @@ mod tests {
             .to_request();
         let resp = test::call_service(&mut app, req).await;
         assert_eq!(resp.status(), StatusCode::CREATED);
+    }
+
+    #[tokio::test]
+    async fn test_store_fault_against_invalid_fault_type() {
+        let fault_store = crate::store::mem_store::MemStore::new_db();
+        let mut app = test::init_service(
+            App::new()
+                .route("/fault", web::post().to(store_fault))
+                .app_data(Data::new(fault_store.clone())),
+        )
+        .await;
+
+        let mut fault = get_mock_fault();
+        fault.fault_type = "invalid_fault_type".to_string();
+
+        let req = test::TestRequest::post()
+            .uri("/fault")
+            .set_json(fault)
+            .to_request();
+        let resp = test::call_service(&mut app, req).await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]

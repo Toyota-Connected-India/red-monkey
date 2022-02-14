@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::string::ToString;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -47,9 +46,7 @@ pub struct Fault {
     /// description provides the optional human-friendly description about the fault
     pub description: Option<String>,
 
-    /// fault_type accepts either `delay` or `error` as the value
-    // TODO: Try to change the fault_type to enum
-    // Use strum_macros: Reference - https://docs.rs/strum_macros/0.22.0/strum_macros/derive.Display.html
+    /// fault_type accepts one of the `delay`, `error` as the fault type value
     pub fault_type: String,
 
     /// In the event of `delay` fault, the duration of the delay in milliseconds will be set in
@@ -64,6 +61,21 @@ pub struct Fault {
 
     // last_modified holds the timestamp at which the fault is created or last modified
     pub last_modified: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum FaultVariants {
+    Delay,
+    Error,
+}
+
+impl FaultVariants {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            FaultVariants::Delay => "delay",
+            FaultVariants::Error => "error",
+        }
+    }
 }
 
 /// A trait providing methods for pluggable data store
