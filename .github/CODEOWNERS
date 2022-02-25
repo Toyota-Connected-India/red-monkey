@@ -1,0 +1,4 @@
+# Global Code Owners
+* @AjithPanneerselvam
+
+*.rs @AjithPanneerselvam

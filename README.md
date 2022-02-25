@@ -12,6 +12,7 @@
  
 We believe systems could fail in spite of rigorous testing and the promise of 99.9% availability by cloud providers. Redis, a popular in-memory store that is used in various levels like caching, database and message-broker also can fail. So, we built a proxy (red-monkey) that can help you test the resiliency of your services against the network and custom error failures in Redis.
  
+
 ## How to build and run locally? 
 
 ### Build 
