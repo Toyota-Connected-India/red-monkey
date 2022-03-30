@@ -2,12 +2,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
+use strum_macros::EnumString;
 use tokio::sync::RwLock;
 
 pub type DB = Arc<RwLock<Box<dyn FaultStore + Send + Sync>>>;
-
-pub const DELAY_FAULT: &str = "delay";
-pub const ERROR_FAULT: &str = "error";
 
 /// Fault represents fault configurations that can be applied on an incoming request
 /// Two types of fault configurations are supported - `delay` and `error`
@@ -18,7 +16,7 @@ pub const ERROR_FAULT: &str = "error";
 /// Fault {
 ///  name: "delay 10 seconds".to_string(),
 ///  description: Some("inject a delay of 10 milliseconds".to_string()),
-///  fault_type: "delay".to_string(),
+///  fault_type: FaultVariants::Delay,
 ///  duration: Some(20),
 ///  error_msg: None,
 ///  command: "SET".to_string(),
@@ -31,14 +29,14 @@ pub const ERROR_FAULT: &str = "error";
 /// Fault {
 ///  name: "SET Error".to_string(),
 ///  description: Some("inject set error".to_string()),
-///  fault_type: "error".to_string(),
+///  fault_type: FaultVariants::Error,
 ///  duration: None,
 ///  error_msg: Some("SET ERROR".to_string()),
 ///  command: "SET".to_string(),
 /// }
 /// ```
 ///
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Fault {
     /// name represents the fault name that acts as the primary key in the store
     pub name: String,
@@ -46,8 +44,8 @@ pub struct Fault {
     /// description provides the optional human-friendly description about the fault
     pub description: Option<String>,
 
-    /// fault_type accepts one of the `delay`, `error` as the fault type value
-    pub fault_type: String,
+    /// fault_type accepts one of the `delay`, `error`, `drop` as the fault type value
+    pub fault_type: FaultVariants,
 
     /// In the event of `delay` fault, the duration of the delay in milliseconds will be set in
     /// this field  
@@ -63,19 +61,12 @@ pub struct Fault {
     pub last_modified: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, PartialEq)]
+/// FaultVariants represents the supported fault types
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, EnumString)]
 pub enum FaultVariants {
     Delay,
     Error,
-}
-
-impl FaultVariants {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            FaultVariants::Delay => "delay",
-            FaultVariants::Error => "error",
-        }
-    }
+    DropConn,
 }
 
 /// A trait providing methods for pluggable data store

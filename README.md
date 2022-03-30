@@ -2,7 +2,7 @@
 
 ![Red monkey](https://github.com/toyotaconnected-India/red-monkey/workflows/red-monkey/badge.svg?branch=main)
 
-`red-monkey` is a TCP proxy that can simulate faults against the Redis store. `red-monkey` can simulate two kinds of faults against Redis - `network delay` and `custom error response`.  
+`red-monkey` is a TCP proxy that can simulate faults against the Redis store. `red-monkey` can simulate two kinds of faults against Redis - `network delay`, `custom error response`, and `drop connection`.  
 
 <p align="center">
   <img src="./assets/red-monkey-logo.png" width=300 height=300 />
@@ -18,13 +18,23 @@ We believe systems could fail in spite of rigorous testing and the promise of 99
 ### Build 
 
 ```
-make docker-build 
+make build 
 ```
 
 ### Run 
 
 ```
-make docker-run
+make run
+```
+
+### Run unit tests
+```
+make test 
+```
+
+### Run red-monkey and redis 
+```
+make compose-up
 ```
 
 ## Usage
@@ -37,6 +47,8 @@ make docker-run
 - Good luck testing the resiliency of your microservices against Redis failures! 
 
 ### Environment variables
+
+The docker environment variables can be configured in the `docker.env` file. 
 
 1. `PROXY_PORT` is the proxy listener port through which the redis requests are proxied to the origin Redis server. The default port is `6350`.
 2. `REDIS_ADDRESS` is the address of the origin Redis server.
@@ -91,4 +103,4 @@ curl -X POST -H "Content-Type: application/json" \
 
 ### License 
 
-`red-monkey` is distributed under the terms of the MIT license. Check [MIT License](https://github.com/toyotaconnected-India/red-monkey/blob/main/LICENSE) for more details.
+`red-monkey` is licensed under [Apache License 2.0](LICENSE).

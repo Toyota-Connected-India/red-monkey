@@ -1,5 +1,3 @@
-#![feature(proc_macro_hygiene, decl_macro, async_closure)]
-
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::net::TcpListener;
 use tokio::{join, signal};

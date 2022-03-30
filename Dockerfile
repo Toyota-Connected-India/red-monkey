@@ -1,20 +1,26 @@
-### Builder image
-FROM rust:1.57 AS builder
+# ------------------ Base image ------------------
+FROM rust:1.59 as base 
+
 WORKDIR /usr/src/app
 
 COPY Cargo.lock .
 COPY Cargo.toml .
+COPY ./examples examples
+COPY ./src src
 RUN mkdir .cargo
 RUN cargo vendor > .cargo/config
 RUN cat .cargo/config
-COPY ./src src
+RUN rustup component add rustfmt clippy;
 
-RUN rustup default nightly-2021-12-10
+# ------------------- Builder -------------------- 
+
+FROM base AS builder
 RUN cargo build --release 
 RUN cargo install --path . --verbose
 
-### Final light-weight image 
-FROM debian:buster-slim
+# ---------------- Executable image --------------
+
+FROM debian:buster-slim as executable 
 COPY --from=builder /usr/local/cargo/bin/red-monkey /bin
 
 RUN apt-get update \

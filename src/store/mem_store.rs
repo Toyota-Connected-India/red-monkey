@@ -183,7 +183,7 @@ mod tests {
             Fault {
                 name: "delay 10 milliseconds".to_string(),
                 description: Some("inject a delay of 10 milliseconds".to_string()),
-                fault_type: "delay".to_string(),
+                fault_type: FaultVariants::Delay,
                 duration: Some(20),
                 error_msg: None,
                 command: "SET".to_string(),
@@ -192,7 +192,7 @@ mod tests {
             Fault {
                 name: "SET Error".to_string(),
                 description: Some("inject set error".to_string()),
-                fault_type: "error".to_string(),
+                fault_type: FaultVariants::Error,
                 duration: None,
                 error_msg: Some("SET ERROR".to_string()),
                 command: "SET".to_string(),
@@ -269,9 +269,9 @@ mod tests {
 
     fn get_mock_fault() -> Fault {
         Fault {
-            name: "delay 10 millimilliseconds".to_string(),
+            name: "delay 10 milliseconds".to_string(),
             description: Some("inject a delay of 10 milliseconds".to_string()),
-            fault_type: "delay".to_string(),
+            fault_type: FaultVariants::Delay,
             duration: Some(20),
             error_msg: None,
             command: "SET".to_string(),

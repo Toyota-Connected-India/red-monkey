@@ -19,7 +19,6 @@ fn main() {
     let _ = conn.set_write_timeout(Some(write_timeout));
 
     set_val(&mut conn, "taskId", 7);
-    get_val(&mut conn, "taskId");
 }
 
 fn set_val(conn: &mut Connection, key: &str, val: i32) {
@@ -33,7 +32,6 @@ fn set_val(conn: &mut Connection, key: &str, val: i32) {
 }
 
 fn get_val(conn: &mut Connection, key: &str) {
-    println!("About to send GET request");
     match conn.get::<&str, i32>(key) {
         Ok(val) => println!("Task ID: {}", val),
         Err(e) => println!("Error fetching key {:?}: {}", key, e),
