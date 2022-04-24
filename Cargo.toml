@@ -38,8 +38,3 @@ anyhow = "1.0.53"
 uuid = "0.8.2"
 strum_macros = "0.24"
 strum = { version = "0.24", features = ["derive"] }
-
-
-[[example]]
-name = "cmd"
-path = "examples/cmd.rs"

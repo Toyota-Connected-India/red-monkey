@@ -30,3 +30,17 @@ pub async fn run(port: u16, fault_store: DB) -> Result<(), anyhow::Error> {
     server.await?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_server_initialization() {
+        let fault_store = crate::store::mem_store::MemStore::new_db();
+
+        tokio::spawn(async move {
+            run(9999, fault_store).await.unwrap();
+        });
+    }
+}

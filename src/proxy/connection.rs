@@ -26,9 +26,15 @@ use uuid::Uuid;
 /// server without any changes to the request payload.
 #[derive(Clone)]
 pub struct Connection {
-    server_addr: String,
     faulter: Faulter,
-    is_tls_conn: bool,
+    origin_server_config: OriginServerConfig,
+}
+
+/// OriginServerConfig represents the configuration needed to connect to the origin server
+#[derive(Clone)]
+pub struct OriginServerConfig {
+    pub server_addr: String,
+    pub is_tls_conn: bool,
 }
 
 trait AsyncReadWrite: AsyncRead + AsyncWrite + Unpin + Send {}
@@ -58,14 +64,12 @@ impl Connection {
     /// But, this could turn out to be a costly op on a large number of requests. This can be improved
     /// by TCP connection pooling.
     pub fn new(
-        server_addr: String,
+        origin_server_config: OriginServerConfig,
         faulter: Faulter,
-        is_tls_conn: bool,
     ) -> Result<Self, anyhow::Error> {
         Ok(Connection {
-            server_addr,
+            origin_server_config,
             faulter,
-            is_tls_conn,
         })
     }
 
@@ -76,7 +80,7 @@ impl Connection {
     /// - When the server of server_addr is not reachable, this method will return error like
     /// `ConnectionRefused`.
     async fn new_tcp_stream(&self) -> Result<Box<dyn AsyncReadWrite>, anyhow::Error> {
-        let tcp_stream = TcpStream::connect(&self.server_addr).await?;
+        let tcp_stream = TcpStream::connect(&self.origin_server_config.server_addr).await?;
         Ok(Box::new(tcp_stream))
     }
 
@@ -87,6 +91,7 @@ impl Connection {
     /// `ConnectionRefused`.
     async fn new_tls_stream(&self) -> Result<Box<dyn AsyncReadWrite>, anyhow::Error> {
         let server_addr = self
+            .origin_server_config
             .server_addr
             .as_str()
             .to_socket_addrs()?
@@ -94,7 +99,7 @@ impl Connection {
             .ok_or_else(|| {
                 anyhow!(
                     "error failed to resolve server address: {}",
-                    self.server_addr,
+                    self.origin_server_config.server_addr,
                 )
             })?;
 
@@ -102,7 +107,7 @@ impl Connection {
         let tls_connector = TlsConnector::builder().build()?;
         let tls_connector = tokio_native_tls::TlsConnector::from(tls_connector);
 
-        let host_name = get_host_name(&self.server_addr.clone())?;
+        let host_name = get_host_name(&self.origin_server_config.server_addr.clone())?;
         let tls_stream = tls_connector.connect(&host_name, tcp_stream).await?;
 
         Ok(Box::new(tls_stream))
@@ -114,11 +119,17 @@ impl Connection {
     /// server.
     /// Else, it returns a raw TCP connection stream to the server.
     async fn create_server_stream(&self) -> Result<Box<dyn AsyncReadWrite>, anyhow::Error> {
-        let stream = if self.is_tls_conn {
-            info!("establishing tls connection to {}", self.server_addr);
+        let stream = if self.origin_server_config.is_tls_conn {
+            info!(
+                "establishing tls connection to {}",
+                self.origin_server_config.server_addr
+            );
             self.new_tls_stream().await?
         } else {
-            info!("establishing tcp connection to {}", self.server_addr);
+            info!(
+                "establishing tcp connection to {}",
+                self.origin_server_config.server_addr
+            );
             self.new_tcp_stream().await?
         };
 
@@ -278,10 +289,14 @@ pub mod tests {
             .await
             .unwrap();
 
+        let origin_server_config = OriginServerConfig {
+            server_addr: origin_server_addr.to_string(),
+            is_tls_conn: false,
+        };
+
         let connection = Connection::new(
-            origin_server_addr.to_string(),
+            origin_server_config,
             proxy::faulter::Faulter::new(fault_store),
-            false,
         )
         .unwrap();
 

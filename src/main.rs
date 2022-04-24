@@ -37,10 +37,14 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let fault_store = store::mem_store::MemStore::new_db();
 
+    let origin_server_config = proxy::connection::OriginServerConfig {
+        server_addr: config.redis_address.clone(),
+        is_tls_conn: true,
+    };
+
     let conn = proxy::connection::Connection::new(
-        config.redis_address.clone(),
+        origin_server_config,
         proxy::faulter::Faulter::new(fault_store.clone()),
-        config.is_redis_tls_conn,
     )
     .expect("Error configuring proxy");
 

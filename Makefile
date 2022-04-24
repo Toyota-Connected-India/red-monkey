@@ -14,6 +14,12 @@ test:
 compose-up:
 	docker-compose -p red-monkey up red-monkey	
 
+coverage: 
+	docker build -t red-monkey-base --target test-coverage .
+	# Had to disable ASLR in the docker to run tarpaulin. Check this issue - https://github.com/xd009642/tarpaulin/issues/146
+	# Check here for more tarpaulin flags and options - https://github.com/xd009642/tarpaulin#tarpaulin
+	docker run --security-opt seccomp=unconfined -it --rm red-monkey-cov:latest cargo tarpaulin -v --bin red-monkey --out Html --exclude-files src/main.rs src/config.rs 
+
 lint:
 	docker build -t red-monkey-base --target base .
 	docker run -it --rm red-monkey-base:latest cargo clippy -- -D warnings

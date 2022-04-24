@@ -5,7 +5,6 @@ WORKDIR /usr/src/app
 
 COPY Cargo.lock .
 COPY Cargo.toml .
-COPY ./examples examples
 COPY ./src src
 RUN mkdir .cargo
 RUN cargo vendor > .cargo/config
@@ -32,3 +31,15 @@ EXPOSE 8000
 EXPOSE 6350
 
 CMD ["/bin/red-monkey"]
+
+# ----------------- Test Coverage -----------------
+
+FROM rust:1.59 as test-coverage 
+
+WORKDIR /usr/src/app
+
+COPY Cargo.lock .
+COPY Cargo.toml .
+COPY ./src src
+
+RUN cargo install cargo-tarpaulin
