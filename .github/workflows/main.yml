@@ -64,3 +64,17 @@ jobs:
         with:
           command: clippy
           args: -- -D warnings
+
+  cargo-deny:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: ${{ env.TOOLCHAIN }}
+        default: true
+    - uses: EmbarkStudios/cargo-deny-action@v1
+      with:
+        log-level: warn
+        command: check advisories licenses sources

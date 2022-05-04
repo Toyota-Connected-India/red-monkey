@@ -1,0 +1,36 @@
+# References
+# - https://embarkstudios.github.io/cargo-deny/checks/index.html
+# - https://github.com/EmbarkStudios/cargo-deny-action
+
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "aarch64-unknown-linux-gnu" },
+    { triple = "x86_64-unknown-linux-musl" },
+    { triple = "aarch64-apple-darwin" },
+    { triple = "x86_64-apple-darwin" },
+]
+
+[advisories]
+vulnerability = "deny"
+unmaintained = "deny"
+notice = "deny"
+unsound = "deny"
+ignore = [
+"RUSTSEC-2020-0071",
+"RUSTSEC-2020-0159",
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-git = []
+
+[licenses]
+unlicensed = "deny"
+allow-osi-fsf-free = "neither"
+copyleft = "deny"
+# We want really high confidence when inferring licenses from text
+confidence-threshold = 0.93
+allow = ["Apache-2.0", "MIT", "BSD-3-Clause"]
+
+exceptions = []
