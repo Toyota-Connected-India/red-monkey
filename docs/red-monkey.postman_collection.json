@@ -1,0 +1,189 @@
+{
+	"info": {
+		"_postman_id": "8d8b33a6-1a4a-4230-9e91-2df650db8715",
+		"name": "red-monkey",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Create delay fault",
+			"protocolProfileBehavior": {
+				"disabledSystemHeaders": {
+					"accept-encoding": true,
+					"connection": true
+				}
+			},
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"delay_fault_3_secs\", \n    \"description\": \"Apply 3 seconds delay fault on Redis GET command\",\n    \"fault_type\": \"Delay\", \n    \"duration\": 3000, \n    \"command\": \"GET\"\n}\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/fault",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"fault"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create error fault",
+			"protocolProfileBehavior": {
+				"disabledSystemHeaders": {
+					"accept-encoding": true,
+					"connection": true
+				}
+			},
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"custom_error\", \n    \"description\": \"Apply custom error on SET command\",\n    \"fault_type\": \"Error\", \n    \"error_msg\": \"Invalid Key\",\n    \"command\": \"SET\"\n}\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/fault",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"fault"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create drop connection fault",
+			"protocolProfileBehavior": {
+				"disabledSystemHeaders": {
+					"connection": true,
+					"accept-encoding": true
+				}
+			},
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"drop_connection_fault\", \n    \"description\": \"Apply drop connection on all redis command\",\n    \"fault_type\": \"DropConn\", \n    \"command\": \"*\"\n}\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/fault",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"fault"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get fault by fault name",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8000/fault/delay_fault_3_secs",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"fault",
+						"delay_fault_3_secs"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get all faults",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8000/faults",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"faults"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete fault",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8000/fault/delay_fault_3_secs",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"fault",
+						"delay_fault_3_secs"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete all faults",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8000/faults",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"faults"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

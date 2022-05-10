@@ -36,10 +36,14 @@ make run
 make test 
 ```
 
-### Run red-monkey and Redis 
+### Run red-monkey with a Redis instance 
+
 ```
 make compose-up
 ```
+
+**Note:** The red-monkey service would point to the Redis instance that is created from the official Redis docker image. This can be useful for local development, testing, and for quick experiments with red-monkey. 
+
 
 ## Usage
 
@@ -62,7 +66,7 @@ The docker environment variables can be configured in the `docker.env` file.
 
 ### Fault configuration
 
-`red-monkey` runs an HTTP server that exposes API endpoints to configure faults. The fault configuration API schema can be found in the [Swagger file](docs/swagger-fault-config-server.yaml). The fault configurations are **stored in memory**. We will work on providing different fault storage options in the future. 
+`red-monkey` runs an HTTP server that exposes API endpoints to configure faults. The fault configuration API schema can be found in the [swagger file](docs/swagger-fault-config-server.yaml). You can also find a [sample postman collection](docs/red-monkey.postman_collection.json) for a quick reference. The fault configurations are **stored in memory**. We will work on providing different fault storage options in the future. 
 
 - The fault injection can be performed with respect to the Redis command. e.g. If the `GET` value is set in the `command` field, the fault will be applied only to the Redis `GET` command requests.  
 - If a fault is desired to be applied to all the Redis commands, set `*` in the `command` field. The fault plan with the `*` will act as a fallback when no specific fault plans match. For example, when there is a specific fault plan for the `GET` command, it will be chosen over the fault plan with the `*` command for Redis `GET` request. When no specific fault plan matches, the fault plan with the `*` command will be applied.
