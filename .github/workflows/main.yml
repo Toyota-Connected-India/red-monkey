@@ -65,6 +65,7 @@ jobs:
           command: clippy
           args: -- -D warnings
 
+
   cargo-deny:
     runs-on: ubuntu-latest
     steps:
