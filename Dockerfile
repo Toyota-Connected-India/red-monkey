@@ -3,7 +3,6 @@ FROM rust:1.59 as base
 
 WORKDIR /usr/src/app
 
-COPY Cargo.lock .
 COPY Cargo.toml .
 COPY ./src src
 RUN mkdir .cargo
