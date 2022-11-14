@@ -11,6 +11,8 @@
 ## Why red-monkey? 
  
 We believe systems could fail despite rigorous testing and the promise of 99.9% availability by cloud providers. Redis, a popular in-memory store that is used in various levels like caching, database and message-broker also can fail. So, we built a proxy (red-monkey) that can help you test the resiliency of your services against failures in Redis.
+
+![red-monkey-diagram](./assets/red-monkey-diagram.excalidraw.png)
  
 
 ## How to build and run locally? 
